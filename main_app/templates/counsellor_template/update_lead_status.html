@@ -1,0 +1,62 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card card-primary">
+                    <div class="card-header">
+                        <h3 class="card-title">Update Status for {{lead.first_name}} {{lead.last_name}}</h3>
+                    </div>
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>Current Status</label>
+                                <p class="form-control-static">
+                                    {% if lead.status == 'NEW' %}
+                                        <span class="badge badge-info">New</span>
+                                    {% elif lead.status == 'CONTACTED' %}
+                                        <span class="badge badge-warning">Contacted</span>
+                                    {% elif lead.status == 'QUALIFIED' %}
+                                        <span class="badge badge-success">Qualified</span>
+                                    {% elif lead.status == 'CLOSED_WON' %}
+                                        <span class="badge badge-primary">Closed Won</span>
+                                    {% elif lead.status == 'CLOSED_LOST' %}
+                                        <span class="badge badge-danger">Closed Lost</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <div class="form-group">
+                                <label>New Status</label>
+                                <select name="new_status" class="form-control" required>
+                                    <option value="">Select New Status</option>
+                                    <option value="NEW">New</option>
+                                    <option value="CONTACTED">Contacted</option>
+                                    <option value="QUALIFIED">Qualified</option>
+                                    <option value="PROPOSAL_SENT">Proposal Sent</option>
+                                    <option value="NEGOTIATION">Negotiation</option>
+                                    <option value="CLOSED_WON">Closed Won</option>
+                                    <option value="CLOSED_LOST">Closed Lost</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Notes (Optional)</label>
+                                <textarea name="notes" class="form-control" rows="3" placeholder="Add any notes about this status change..."></textarea>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button type="submit" class="btn btn-primary">Update Status</button>
+                            <a href="{% url 'lead_detail' lead.id %}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

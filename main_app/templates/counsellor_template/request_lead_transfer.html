@@ -1,0 +1,78 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card card-primary">
+                    <div class="card-header">
+                        <h3 class="card-title">Request Lead Transfer for {{lead.first_name}} {{lead.last_name}}</h3>
+                    </div>
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Lead Information</label>
+                                        <p class="form-control-static">
+                                            <strong>{{lead.first_name}} {{lead.last_name}}</strong><br>
+                                            {{lead.email}}<br>
+                                            {{lead.phone}}<br>
+                                            School: {{lead.school_name|default:"Not provided"}}<br>
+                                            Current Status: 
+                                            {% if lead.status == 'NEW' %}
+                                                <span class="badge badge-info">New</span>
+                                            {% elif lead.status == 'CONTACTED' %}
+                                                <span class="badge badge-warning">Contacted</span>
+                                            {% elif lead.status == 'QUALIFIED' %}
+                                                <span class="badge badge-success">Qualified</span>
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Transfer To Counsellor</label>
+                                        {{form.to_counsellor}}
+                                        {% if form.to_counsellor.errors %}
+                                            <span class="text-danger">{{form.to_counsellor.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Reason for Transfer</label>
+                                        {{form.reason}}
+                                        {% if form.reason.errors %}
+                                            <span class="text-danger">{{form.reason.errors}}</span>
+                                        {% endif %}
+                                        <small class="form-text text-muted">
+                                            Please provide a clear reason for transferring this lead to another counsellor.
+                                        </small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Additional Notes</label>
+                                        <textarea name="additional_notes" class="form-control" rows="4" placeholder="Any additional information that might help the new counsellor..."></textarea>
+                                    </div>
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle"></i>
+                                        <strong>Note:</strong> Once transferred, you will no longer have access to this lead. 
+                                        The transfer request will be reviewed by admin before approval.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button type="submit" class="btn btn-warning">Request Transfer</button>
+                            <a href="{% url 'lead_detail' lead.id %}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

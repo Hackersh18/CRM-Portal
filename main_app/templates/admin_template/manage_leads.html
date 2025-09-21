@@ -1,0 +1,137 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Manage Leads</h3>
+                        <div class="card-tools">
+                        <a href="{% url 'add_lead' %}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Add Lead
+                        </a>
+                        <a href="{% url 'import_leads' %}" class="btn btn-success">
+                            <i class="fas fa-upload"></i> Import Leads
+                        </a>
+                        <form method="POST" action="{% url 'bulk_ai_assign_counsellors' %}" style="display: inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-info" onclick="return confirm('Assign all unassigned leads using AI?')">
+                                <i class="fas fa-robot"></i> AI Assign All
+                            </button>
+                        </form>
+                            <a href="{% url 'assign_leads_to_counsellors' %}" class="btn btn-warning">
+                                <i class="fas fa-users"></i> Assign Leads
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <table id="example1" class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>Course Interested In</th>
+                                    <th>School Name</th>
+                                    <th>Source</th>
+                                    <th>Status</th>
+                                    <th>Priority</th>
+                                    <th>Counsellor</th>
+                                    <th>Expected Value</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for lead in leads %}
+                                <tr>
+                                    <td>{{lead.id}}</td>
+                                    <td>{{lead.first_name}} {{lead.last_name}}</td>
+                                    <td>{{lead.email}}</td>
+                                    <td>{{lead.phone}}</td>
+                                    <td>{{lead.course_interested|default:"-"}}</td>
+                                    <td>{{lead.school_name|default:"-"}}</td>
+                                    <td>{{lead.source.name}}</td>
+                                    <td>
+                                        {% if lead.status == 'NEW' %}
+                                            <span class="badge badge-info">New</span>
+                                        {% elif lead.status == 'CONTACTED' %}
+                                            <span class="badge badge-warning">Contacted</span>
+                                        {% elif lead.status == 'QUALIFIED' %}
+                                            <span class="badge badge-success">Qualified</span>
+                                        {% elif lead.status == 'CLOSED_WON' %}
+                                            <span class="badge badge-primary">Closed Won</span>
+                                        {% elif lead.status == 'CLOSED_LOST' %}
+                                            <span class="badge badge-danger">Closed Lost</span>
+                                        {% else %}
+                                            <span class="badge badge-secondary">{{lead.status}}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if lead.priority == 'LOW' %}
+                                            <span class="badge badge-secondary">Low</span>
+                                        {% elif lead.priority == 'MEDIUM' %}
+                                            <span class="badge badge-warning">Medium</span>
+                                        {% elif lead.priority == 'HIGH' %}
+                                            <span class="badge badge-danger">High</span>
+                                        {% elif lead.priority == 'URGENT' %}
+                                            <span class="badge badge-dark">Urgent</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if lead.assigned_counsellor %}
+                                            {{lead.assigned_counsellor.admin.first_name}} {{lead.assigned_counsellor.admin.last_name}}
+                                        {% else %}
+                                            <span class="text-muted">Not assigned</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>₹{{lead.expected_value}}</td>
+                                    <td>
+                                        <a href="{% url 'admin_view_lead' lead.id %}" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                        {% if not lead.assigned_counsellor %}
+                                            <a href="{% url 'ai_assign_counsellor' lead.id %}" class="btn btn-sm btn-success">
+                                                <i class="fas fa-user-plus"></i> AI Assign
+                                            </a>
+                                        {% endif %}
+                                        <a href="{% url 'edit_lead' lead.id %}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-edit"></i> Edit
+                                        </a>
+                                        <a href="{% url 'delete_lead' lead.id %}" class="btn btn-sm btn-danger" 
+                                           onclick="return confirm('Are you sure you want to delete this lead?')">
+                                            <i class="fas fa-trash"></i> Delete
+                                        </a>
+                                        <a href="{% url 'transfer_lead' lead.id %}" class="btn btn-sm btn-warning">
+                                            <i class="fas fa-exchange-alt"></i> Transfer
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block custom_js %}
+<script>
+    $(function () {
+        $("#example1").DataTable({
+            "responsive": true,
+            "lengthChange": false,
+            "autoWidth": false,
+            "buttons": ["copy", "csv", "excel", "pdf", "print", "colvis"]
+        }).buttons().container().appendTo('#example1_wrapper .col-md-6:eq(0)');
+    });
+</script>
+{% endblock custom_js %}

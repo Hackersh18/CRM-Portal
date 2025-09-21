@@ -1,0 +1,83 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">My Activities</h3>
+                    </div>
+                    <div class="card-body">
+                        {% if activities %}
+                            <table id="example1" class="table table-bordered table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Lead</th>
+                                        <th>Activity Type</th>
+                                        <th>Subject</th>
+                                        <th>Outcome</th>
+                                        <th>Duration</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for activity in activities %}
+                                    <tr>
+                                        <td>{{activity.scheduled_date|date:"M d, Y H:i"}}</td>
+                                        <td>{{activity.lead.first_name}} {{activity.lead.last_name}}</td>
+                                        <td>
+                                            <span class="badge badge-info">{{activity.get_activity_type_display}}</span>
+                                        </td>
+                                        <td>{{activity.subject}}</td>
+                                        <td>{{activity.outcome|default:"-"}}</td>
+                                        <td>{{activity.duration}} min</td>
+                                        <td>
+                                            {% if activity.is_completed %}
+                                                <span class="badge badge-success">Completed</span>
+                                            {% else %}
+                                                <span class="badge badge-warning">Pending</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <a href="{% url 'lead_detail' activity.lead.id %}" class="btn btn-sm btn-info" title="View Lead Details">
+                                                <i class="fas fa-eye"></i> View
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <div class="text-center py-5">
+                                <i class="fas fa-tasks fa-3x text-muted mb-3"></i>
+                                <h4 class="text-muted">No Activities</h4>
+                                <p class="text-muted">You haven't logged any activities yet.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block custom_js %}
+<script>
+    $(function () {
+        $("#example1").DataTable({
+            "responsive": true,
+            "lengthChange": false,
+            "autoWidth": false,
+            "buttons": ["copy", "csv", "excel", "pdf", "print", "colvis"]
+        }).buttons().container().appendTo('#example1_wrapper .col-md-6:eq(0)');
+    });
+</script>
+{% endblock custom_js %}

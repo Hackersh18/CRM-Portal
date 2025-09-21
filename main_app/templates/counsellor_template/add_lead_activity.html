@@ -1,0 +1,91 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card card-primary">
+                    <div class="card-header">
+                        <h3 class="card-title">Add Activity for {{lead.first_name}} {{lead.last_name}}</h3>
+                    </div>
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Activity Type</label>
+                                        {{form.activity_type}}
+                                        {% if form.activity_type.errors %}
+                                            <span class="text-danger">{{form.activity_type.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Subject</label>
+                                        {{form.subject}}
+                                        {% if form.subject.errors %}
+                                            <span class="text-danger">{{form.subject.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Description</label>
+                                        {{form.description}}
+                                        {% if form.description.errors %}
+                                            <span class="text-danger">{{form.description.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Outcome</label>
+                                        {{form.outcome}}
+                                        {% if form.outcome.errors %}
+                                            <span class="text-danger">{{form.outcome.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Next Action</label>
+                                        {{form.next_action}}
+                                        {% if form.next_action.errors %}
+                                            <span class="text-danger">{{form.next_action.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Scheduled Date</label>
+                                        {{form.scheduled_date}}
+                                        {% if form.scheduled_date.errors %}
+                                            <span class="text-danger">{{form.scheduled_date.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Duration (minutes)</label>
+                                        {{form.duration}}
+                                        {% if form.duration.errors %}
+                                            <span class="text-danger">{{form.duration.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Completed</label>
+                                        {{form.is_completed}}
+                                        {% if form.is_completed.errors %}
+                                            <span class="text-danger">{{form.is_completed.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button type="submit" class="btn btn-primary">Add Activity</button>
+                            <a href="{% url 'lead_detail' lead.id %}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

@@ -1,0 +1,139 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-8">
+                <!-- Business Information -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Business Information</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label><strong>Title:</strong></label>
+                                    <p>{{business.title}}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Lead:</strong></label>
+                                    <p>{{business.lead.first_name}} {{business.lead.last_name}}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Value:</strong></label>
+                                    <p class="text-success font-weight-bold">₹{{business.value}}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Status:</strong></label>
+                                    <p>
+                                        {% if business.status == 'ACTIVE' %}
+                                            <span class="badge badge-success">Active</span>
+                                        {% elif business.status == 'PENDING' %}
+                                            <span class="badge badge-warning">Pending</span>
+                                        {% elif business.status == 'COMPLETED' %}
+                                            <span class="badge badge-info">Completed</span>
+                                        {% elif business.status == 'CANCELLED' %}
+                                            <span class="badge badge-danger">Cancelled</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label><strong>Start Date:</strong></label>
+                                    <p>{{business.start_date|date:"M d, Y"}}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>End Date:</strong></label>
+                                    <p>{{business.end_date|date:"M d, Y"}}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Payment Terms:</strong></label>
+                                    <p>{{business.payment_terms|default:"Not specified"}}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Created Date:</strong></label>
+                                    <p>{{business.created_at|date:"M d, Y"}}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label><strong>Description:</strong></label>
+                            <p>{{business.description|default:"No description available"}}</p>
+                        </div>
+                        <div class="form-group">
+                            <label><strong>Notes:</strong></label>
+                            <p>{{business.notes|default:"No notes available"}}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <!-- Quick Actions -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Quick Actions</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="btn-group-vertical w-100">
+                            <a href="{% url 'update_business_status' business.id %}" class="btn btn-info mb-2">
+                                <i class="fas fa-edit"></i> Update Status
+                            </a>
+                            <a href="#" class="btn btn-success mb-2">
+                                <i class="fas fa-eye"></i> View Lead
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Business Timeline -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Timeline</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="timeline">
+                            <div class="time-label">
+                                <span class="bg-green">{{business.created_at|date:"M d, Y"}}</span>
+                            </div>
+                            <div>
+                                <i class="fas fa-briefcase bg-blue"></i>
+                                <div class="timeline-item">
+                                    <h3 class="timeline-header">Business Created</h3>
+                                    <div class="timeline-body">
+                                        Business opportunity created from lead
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <i class="fas fa-calendar bg-green"></i>
+                                <div class="timeline-item">
+                                    <h3 class="timeline-header">Start Date</h3>
+                                    <div class="timeline-body">
+                                        Business started on {{business.start_date|date:"M d, Y"}}
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <i class="fas fa-calendar-check bg-info"></i>
+                                <div class="timeline-item">
+                                    <h3 class="timeline-header">End Date</h3>
+                                    <div class="timeline-body">
+                                        Expected completion on {{business.end_date|date:"M d, Y"}}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

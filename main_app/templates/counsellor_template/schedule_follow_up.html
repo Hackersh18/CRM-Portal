@@ -1,0 +1,93 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card card-primary">
+                    <div class="card-header">
+                        <h3 class="card-title">Schedule Follow-up for {{lead.first_name}} {{lead.last_name}}</h3>
+                    </div>
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Lead Information</label>
+                                        <p class="form-control-static">
+                                            <strong>{{lead.first_name}} {{lead.last_name}}</strong><br>
+                                            {{lead.email}}<br>
+                                            {{lead.phone}}<br>
+                                            Current Status: 
+                                            {% if lead.status == 'NEW' %}
+                                                <span class="badge badge-info">New</span>
+                                            {% elif lead.status == 'CONTACTED' %}
+                                                <span class="badge badge-warning">Contacted</span>
+                                            {% elif lead.status == 'QUALIFIED' %}
+                                                <span class="badge badge-success">Qualified</span>
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Follow-up Date & Time</label>
+                                        <input type="datetime-local" name="follow_up_date" class="form-control" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Follow-up Type</label>
+                                        <select name="follow_up_type" class="form-control" required>
+                                            <option value="">Select Type</option>
+                                            <option value="CALL">Phone Call</option>
+                                            <option value="EMAIL">Email</option>
+                                            <option value="MEETING">Meeting</option>
+                                            <option value="DEMO">Demo</option>
+                                            <option value="PROPOSAL">Proposal Discussion</option>
+                                            <option value="OTHER">Other</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Subject</label>
+                                        <input type="text" name="subject" class="form-control" placeholder="Follow-up subject" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Description</label>
+                                        <textarea name="description" class="form-control" rows="4" placeholder="Describe what needs to be discussed or accomplished..."></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Priority</label>
+                                        <select name="priority" class="form-control">
+                                            <option value="LOW">Low</option>
+                                            <option value="MEDIUM" selected>Medium</option>
+                                            <option value="HIGH">High</option>
+                                            <option value="URGENT">Urgent</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Reminder</label>
+                                        <select name="reminder" class="form-control">
+                                            <option value="15">15 minutes before</option>
+                                            <option value="30" selected>30 minutes before</option>
+                                            <option value="60">1 hour before</option>
+                                            <option value="1440">1 day before</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button type="submit" class="btn btn-primary">Schedule Follow-up</button>
+                            <a href="{% url 'lead_detail' lead.id %}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

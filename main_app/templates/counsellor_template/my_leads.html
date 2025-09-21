@@ -1,0 +1,166 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+{% block custom_css %}
+<style>
+    /* Compact action buttons within the My Leads table */
+    #example1 tbody td.actions-cell .btn {
+        padding: 4px 8px;
+        font-size: 12px;
+        line-height: 1.2;
+        border-radius: 3px;
+        margin-right: 4px;
+    }
+    #example1 tbody td.actions-cell .btn i {
+        margin-right: 2px;
+        font-size: 11px;
+    }
+    /* Arrange buttons vertically */
+    #example1 tbody td.actions-cell {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+        white-space: normal;
+    }
+    #example1 tbody td.actions-cell .btn {
+        margin-right: 0;
+        display: inline-flex;
+        align-items: center;
+        width: auto;
+    }
+    @media (max-width: 576px) {
+        #example1 tbody td.actions-cell .btn {
+            padding: 2px 5px;
+            font-size: 11px;
+        }
+    }
+</style>
+{% endblock custom_css %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">My Assigned Leads</h3>
+                        <div class="card-tools">
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-toggle="dropdown">
+                                    Filter by Status
+                                </button>
+                                <div class="dropdown-menu">
+                                    <a class="dropdown-item" href="{% url 'my_leads' %}">All Leads</a>
+                                    <a class="dropdown-item" href="{% url 'my_leads' %}?status=NEW">New</a>
+                                    <a class="dropdown-item" href="{% url 'my_leads' %}?status=CONTACTED">Contacted</a>
+                                    <a class="dropdown-item" href="{% url 'my_leads' %}?status=QUALIFIED">Qualified</a>
+                                    <a class="dropdown-item" href="{% url 'my_leads' %}?status=CLOSED_WON">Closed Won</a>
+                                    <a class="dropdown-item" href="{% url 'my_leads' %}?status=CLOSED_LOST">Closed Lost</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <table id="example1" class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Lead ID</th>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>Source</th>
+                                    <th>Status</th>
+                                    <th>Priority</th>
+                                    <th>Expected Value</th>
+                                    <th>Last Contact</th>
+                                    <th>Next Follow-up</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for lead in leads %}
+                                <tr>
+                                    <td>{{lead.lead_id}}</td>
+                                    <td>{{lead.first_name}} {{lead.last_name}}</td>
+                                    <td>{{lead.email}}</td>
+                                    <td>{{lead.phone}}</td>
+                                    <td>{{lead.source.name}}</td>
+                                    <td>
+                                        {% if lead.status == 'NEW' %}
+                                            <span class="badge badge-info">New</span>
+                                        {% elif lead.status == 'CONTACTED' %}
+                                            <span class="badge badge-warning">Contacted</span>
+                                        {% elif lead.status == 'QUALIFIED' %}
+                                            <span class="badge badge-primary">Qualified</span>
+                                        {% elif lead.status == 'CLOSED_WON' %}
+                                            <span class="badge badge-success">Closed Won</span>
+                                        {% elif lead.status == 'CLOSED_LOST' %}
+                                            <span class="badge badge-danger">Closed Lost</span>
+                                        {% elif lead.status == 'TRANSFERRED' %}
+                                            <span class="badge badge-secondary">Transferred</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if lead.priority == 'LOW' %}
+                                            <span class="badge badge-secondary">Low</span>
+                                        {% elif lead.priority == 'MEDIUM' %}
+                                            <span class="badge badge-warning">Medium</span>
+                                        {% elif lead.priority == 'HIGH' %}
+                                            <span class="badge badge-danger">High</span>
+                                        {% elif lead.priority == 'URGENT' %}
+                                            <span class="badge badge-dark">Urgent</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>₹{{lead.expected_value|floatformat:0}}</td>
+                                    <td>
+                                        {% if lead.last_contact_date %}
+                                            {{lead.last_contact_date|date:"M d, Y"}}
+                                        {% else %}
+                                            <span class="text-muted">Never</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if lead.next_follow_up %}
+                                            {{lead.next_follow_up|date:"M d, Y"}}
+                                        {% else %}
+                                            <span class="text-muted">Not scheduled</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="actions-cell">
+                                        <a href="{% url 'lead_detail' lead.id %}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                        <a href="{% url 'add_lead_activity' lead.id %}" class="btn btn-sm btn-success">
+                                            <i class="fas fa-plus"></i> Activity
+                                        </a>
+                                        {% if lead.status != 'CLOSED_WON' and lead.status != 'CLOSED_LOST' %}
+                
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block custom_js %}
+<script>
+    $(function () {
+        $("#example1").DataTable({
+            "responsive": true,
+            "lengthChange": false,
+            "autoWidth": false,
+            "buttons": ["copy", "csv", "excel", "pdf", "print", "colvis"]
+        }).buttons().container().appendTo('#example1_wrapper .col-md-6:eq(0)');
+    });
+</script>
+{% endblock custom_js %}

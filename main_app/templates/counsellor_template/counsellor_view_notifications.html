@@ -1,0 +1,53 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">My Notifications</h3>
+                    </div>
+                    <div class="card-body">
+                        {% if notifications %}
+                            <div class="timeline">
+                                {% for notification in notifications %}
+                                <div class="time-label">
+                                    <span class="bg-red">{{notification.created_at|date:"M d, Y"}}</span>
+                                </div>
+                                <div>
+                                    <i class="fas fa-info bg-blue"></i>
+                                    <div class="timeline-item">
+                                        <span class="time"><i class="fas fa-clock"></i> {{notification.created_at|time:"H:i"}}</span>
+                                        <h3 class="timeline-header">Admin Notification</h3>
+                                        <div class="timeline-body">
+                                            {{notification.message}}
+                                        </div>
+                                        <div class="timeline-footer">
+                                            <a href="{% url 'delete_counsellor_notification' notification.id %}" class="btn btn-danger btn-sm" 
+                                               onclick="return confirm('Are you sure you want to delete this notification?')">
+                                                <i class="fas fa-trash"></i> Delete
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center py-5">
+                                <i class="fas fa-bell fa-3x text-muted mb-3"></i>
+                                <h4 class="text-muted">No Notifications</h4>
+                                <p class="text-muted">You have no notifications at the moment.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

@@ -1,0 +1,158 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block custom_css %}
+<style>
+    .performance-card {
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+    }
+    
+    .performance-card:hover {
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+        transform: translateY(-2px);
+    }
+    
+    .performance-header {
+        background: linear-gradient(45deg, #007bff, #6610f2);
+        color: white;
+        padding: 20px;
+        border-radius: 15px 15px 0 0;
+    }
+    
+    .performance-body {
+        padding: 20px;
+    }
+    
+    .metric-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .metric-item:last-child {
+        border-bottom: none;
+    }
+    
+    .metric-label {
+        font-weight: 600;
+        color: #555;
+    }
+    
+    .metric-value {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #007bff;
+    }
+    
+    .conversion-rate {
+        font-size: 1.5rem;
+        font-weight: 700;
+        text-align: center;
+        padding: 20px;
+        background: linear-gradient(45deg, #28a745, #20c997);
+        color: white;
+        border-radius: 10px;
+        margin-top: 15px;
+    }
+</style>
+{% endblock custom_css %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Counsellor Performance Overview</h3>
+                        <div class="card-tools">
+                            <button type="button" class="btn btn-primary" onclick="exportPerformance()">
+                                <i class="fas fa-download"></i> Export Report
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        {% if performance_data %}
+                            <div class="row">
+                                {% for item in performance_data %}
+                                <div class="col-md-6 col-lg-4">
+                                    <div class="performance-card">
+                                        <div class="performance-header">
+                                            <h5 class="mb-0">
+                                                <i class="fas fa-user-tie mr-2"></i>
+                                                {{item.counsellor.admin.first_name}} {{item.counsellor.admin.last_name}}
+                                            </h5>
+                                            <small>{{item.counsellor.employee_id}}</small>
+                                        </div>
+                                        <div class="performance-body">
+                                            <div class="metric-item">
+                                                <span class="metric-label">Total Leads Assigned:</span>
+                                                <span class="metric-value">{{item.performance.total_leads_assigned}}</span>
+                                            </div>
+                                            <div class="metric-item">
+                                                <span class="metric-label">Leads Contacted:</span>
+                                                <span class="metric-value">{{item.performance.total_leads_contacted}}</span>
+                                            </div>
+                                            <div class="metric-item">
+                                                <span class="metric-label">Leads Qualified:</span>
+                                                <span class="metric-value">{{item.performance.total_leads_qualified}}</span>
+                                            </div>
+                                            <div class="metric-item">
+                                                <span class="metric-label">Business Generated:</span>
+                                                <span class="metric-value">₹{{item.performance.total_business_generated|floatformat:0}}</span>
+                                            </div>
+                                            <div class="metric-item">
+                                                <span class="metric-label">Avg Response Time:</span>
+                                                <span class="metric-value">{{item.performance.average_response_time}}h</span>
+                                            </div>
+                                            
+                                            <div class="conversion-rate">
+                                                {{item.performance.conversion_rate|floatformat:1}}% Conversion Rate
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center py-5">
+                                <i class="fas fa-chart-bar fa-3x text-muted mb-3"></i>
+                                <h4 class="text-muted">No Performance Data Available</h4>
+                                <p class="text-muted">Performance data will appear here once counsellors start working with leads.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block custom_js %}
+<script>
+    function exportPerformance() {
+        // Create a simple CSV export
+        let csv = 'Counsellor,Employee ID,Total Leads,Leads Contacted,Leads Qualified,Business Generated,Conversion Rate\n';
+        
+        {% for item in performance_data %}
+        csv += '{{item.counsellor.admin.first_name}} {{item.counsellor.admin.last_name}},{{item.counsellor.employee_id}},{{item.performance.total_leads_assigned}},{{item.performance.total_leads_contacted}},{{item.performance.total_leads_qualified}},{{item.performance.total_business_generated}},{{item.performance.conversion_rate}}%\n';
+        {% endfor %}
+        
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'counsellor_performance.csv';
+        a.click();
+        window.URL.revokeObjectURL(url);
+    }
+</script>
+{% endblock custom_js %}

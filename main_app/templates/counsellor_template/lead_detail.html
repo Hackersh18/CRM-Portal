@@ -1,0 +1,276 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-8">
+                <!-- Lead Information -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Lead Information</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label><strong>Name:</strong></label>
+                                    <p>{{lead.first_name}} {{lead.last_name}}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Email:</strong></label>
+                                    <p>{{lead.email}}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Phone:</strong></label>
+                                    <p>{{lead.phone}}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Company:</strong></label>
+                                    <p>{{lead.school_name|default:"Not provided"}}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Position:</strong></label>
+                                    <p>{{lead.position|default:"Not provided"}}</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label><strong>Status:</strong></label>
+                                    <p>
+                                        {% if lead.status == 'NEW' %}
+                                            <span class="badge badge-info">New</span>
+                                        {% elif lead.status == 'CONTACTED' %}
+                                            <span class="badge badge-warning">Contacted</span>
+                                        {% elif lead.status == 'QUALIFIED' %}
+                                            <span class="badge badge-success">Qualified</span>
+                                        {% elif lead.status == 'CLOSED_WON' %}
+                                            <span class="badge badge-primary">Closed Won</span>
+                                        {% elif lead.status == 'CLOSED_LOST' %}
+                                            <span class="badge badge-danger">Closed Lost</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Priority:</strong></label>
+                                    <p>
+                                        {% if lead.priority == 'LOW' %}
+                                            <span class="badge badge-secondary">Low</span>
+                                        {% elif lead.priority == 'MEDIUM' %}
+                                            <span class="badge badge-warning">Medium</span>
+                                        {% elif lead.priority == 'HIGH' %}
+                                            <span class="badge badge-danger">High</span>
+                                        {% elif lead.priority == 'URGENT' %}
+                                            <span class="badge badge-dark">Urgent</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Expected Value:</strong></label>
+                                    <p>₹{{lead.expected_value}}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Conversion Score:</strong></label>
+                                    <p>
+                                        {% if lead.conversion_score is not None %}
+                                            <span class="badge badge-info">{{ lead.conversion_score }} / 100</span>
+                                        {% else %}
+                                            <span class="text-muted">Not evaluated</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Source:</strong></label>
+                                    <p>{{lead.source.name}}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label><strong>Notes:</strong></label>
+                            <p>{{lead.notes|default:"No notes available"}}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Activities -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Activities</h3>
+                        <div class="card-tools">
+                            <a href="{% url 'add_lead_activity' lead.id %}" class="btn btn-primary btn-sm">
+                                <i class="fas fa-plus"></i> Add Activity
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        {% if activities %}
+                            <div class="timeline">
+                                {% for activity in activities %}
+                                <div class="time-label">
+                                    <span class="bg-blue">{{activity.scheduled_date|date:"M d, Y"}}</span>
+                                </div>
+                                <div>
+                                    <i class="fas fa-tasks bg-green"></i>
+                                    <div class="timeline-item">
+                                        <span class="time"><i class="fas fa-clock"></i> {{activity.scheduled_date|time:"H:i"}}</span>
+                                        <h3 class="timeline-header">{{activity.get_activity_type_display}}</h3>
+                                        <div class="timeline-body">
+                                            <strong>{{activity.subject}}</strong><br>
+                                            {{activity.description}}<br>
+                                            <small>Duration: {{activity.duration}} min</small>
+                                        </div>
+                                        <div class="timeline-footer">
+                                            {% if activity.is_completed %}
+                                                <span class="badge badge-success">Completed</span>
+                                            {% else %}
+                                                <span class="badge badge-warning">Pending</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-muted">No activities logged yet.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <!-- Quick Actions -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Quick Actions</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="btn-group-vertical w-100">
+                            <button type="button" class="btn btn-info mb-2" data-toggle="modal" data-target="#updateStatusModal">
+                                <i class="fas fa-edit"></i> Update Status
+                            </button>
+                            <a href="{% url 'add_lead_activity' lead.id %}" class="btn btn-success mb-2">
+                                <i class="fas fa-plus"></i> Add Activity
+                            </a>
+                            <button type="button" class="btn btn-warning mb-2" data-toggle="modal" data-target="#scheduleFollowUpModal">
+                                <i class="fas fa-calendar"></i> Schedule Follow-up
+                            </button>
+                            <a href="{% url 'evaluate_conversion_score' lead.id %}" class="btn btn-outline-primary mb-2">
+                                <i class="fas fa-magic"></i> Evaluate Conversion Score
+                            </a>
+                            {% if lead.status == 'QUALIFIED' %}
+                                <a href="{% url 'create_business' lead.id %}" class="btn btn-primary mb-2">
+                                    <i class="fas fa-briefcase"></i> Create Business
+                                </a>
+                            {% endif %}
+                            <a href="{% url 'request_lead_transfer' lead.id %}" class="btn btn-secondary mb-2">
+                                <i class="fas fa-exchange-alt"></i> Request Transfer
+                            </a>
+                            <a href="{% url 'mark_lead_lost' lead.id %}" class="btn btn-danger mb-2">
+                                <i class="fas fa-times"></i> Mark as Lost
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Lead Timeline -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Timeline</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="timeline">
+                            <div class="time-label">
+                                <span class="bg-green">{{lead.created_at|date:"M d, Y"}}</span>
+                            </div>
+                            <div>
+                                <i class="fas fa-user bg-blue"></i>
+                                <div class="timeline-item">
+                                    <h3 class="timeline-header">Lead Created</h3>
+                                    <div class="timeline-body">
+                                        Lead added to system
+                                    </div>
+                                </div>
+                            </div>
+                            {% if lead.assigned_counsellor %}
+                            <div>
+                                <i class="fas fa-user-tie bg-green"></i>
+                                <div class="timeline-item">
+                                    <h3 class="timeline-header">Assigned to Counsellor</h3>
+                                    <div class="timeline-body">
+                                        Assigned to {{lead.assigned_counsellor.admin.first_name}} {{lead.assigned_counsellor.admin.last_name}}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+<!-- Update Status Modal -->
+<div class="modal fade" id="updateStatusModal" tabindex="-1" role="dialog" aria-labelledby="updateStatusLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="updateStatusLabel">Update Lead Status</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form method="POST" action="{% url 'update_lead_status' lead.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="status">Select new status</label>
+                        <select id="status" name="status" class="form-control" required>
+                            <option value="NEW" {% if lead.status == 'NEW' %}selected{% endif %}>New</option>
+                            <option value="CONTACTED" {% if lead.status == 'CONTACTED' %}selected{% endif %}>Contacted</option>
+                            <option value="QUALIFIED" {% if lead.status == 'QUALIFIED' %}selected{% endif %}>Qualified</option>
+                            <option value="PROPOSAL_SENT" {% if lead.status == 'PROPOSAL_SENT' %}selected{% endif %}>Proposal Sent</option>
+                            <option value="NEGOTIATION" {% if lead.status == 'NEGOTIATION' %}selected{% endif %}>Negotiation</option>
+                            <option value="CLOSED_WON" {% if lead.status == 'CLOSED_WON' %}selected{% endif %}>Closed Won</option>
+                            <option value="CLOSED_LOST" {% if lead.status == 'CLOSED_LOST' %}selected{% endif %}>Closed Lost</option>
+                            <option value="TRANSFERRED" {% if lead.status == 'TRANSFERRED' %}selected{% endif %}>Transferred</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- Schedule Follow-up Modal -->
+<div class="modal fade" id="scheduleFollowUpModal" tabindex="-1" role="dialog" aria-labelledby="scheduleFollowUpLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="scheduleFollowUpLabel">Schedule Follow-up</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form method="POST" action="{% url 'schedule_follow_up' lead.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="follow_up_date">Follow-up date and time</label>
+                        <input type="datetime-local" class="form-control" id="follow_up_date" name="follow_up_date" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock content %}

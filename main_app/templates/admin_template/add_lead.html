@@ -1,0 +1,232 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card card-primary">
+                    <div class="card-header">
+                        <h3 class="card-title">Add New Lead</h3>
+                    </div>
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>First Name</label>
+                                        {{form.first_name}}
+                                        {% if form.first_name.errors %}
+                                            <span class="text-danger">{{form.first_name.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Last Name</label>
+                                        {{form.last_name}}
+                                        {% if form.last_name.errors %}
+                                            <span class="text-danger">{{form.last_name.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Email</label>
+                                        {{form.email}}
+                                        {% if form.email.errors %}
+                                            <span class="text-danger">{{form.email.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Phone</label>
+                                        {{form.phone}}
+                                        {% if form.phone.errors %}
+                                            <span class="text-danger">{{form.phone.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Course Interested In</label>
+                                        {{form.course_interested}}
+                                        {% if form.course_interested.errors %}
+                                            <span class="text-danger">{{form.course_interested.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>12th School Name</label>
+                                        {{form.school_name}}
+                                        {% if form.school_name.errors %}
+                                            <span class="text-danger">{{form.school_name.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>12th Percentage</label>
+                                        {{form.position}}
+                                        {% if form.position.errors %}
+                                            <span class="text-danger">{{form.position.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Notes</label>
+                                        {{form.notes}}
+                                        {% if form.notes.errors %}
+                                            <span class="text-danger">{{form.notes.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Next Follow-up</label>
+                                        {{form.next_follow_up}}
+                                        {% if form.next_follow_up.errors %}
+                                            <span class="text-danger">{{form.next_follow_up.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Graduation Status</label>
+                                        {{form.graduation_status}}
+                                        {% if form.graduation_status.errors %}
+                                            <span class="text-danger">{{form.graduation_status.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <!-- Hidden industry field for backward compatibility -->
+                                    {{form.industry}}
+                                    
+                                    <!-- Conditional graduation details fields -->
+                                    <div id="graduation-details" style="display: none;">
+                                        <div class="form-group">
+                                            <label>Graduation Course</label>
+                                            {{form.graduation_course}}
+                                            {% if form.graduation_course.errors %}
+                                                <span class="text-danger">{{form.graduation_course.errors}}</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Graduation Year</label>
+                                            {{form.graduation_year}}
+                                            {% if form.graduation_year.errors %}
+                                                <span class="text-danger">{{form.graduation_year.errors}}</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Graduation College</label>
+                                            {{form.graduation_college}}
+                                            {% if form.graduation_college.errors %}
+                                                <span class="text-danger">{{form.graduation_college.errors}}</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label>Lead Source</label>
+                                        {{form.source}}
+                                        {% if form.source.errors %}
+                                            <span class="text-danger">{{form.source.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Status</label>
+                                        {{form.status}}
+                                        {% if form.status.errors %}
+                                            <span class="text-danger">{{form.status.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Priority</label>
+                                        {{form.priority}}
+                                        {% if form.priority.errors %}
+                                            <span class="text-danger">{{form.priority.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Assigned Counsellor</label>
+                                        {{form.assigned_counsellor}}
+                                        {% if form.assigned_counsellor.errors %}
+                                            <span class="text-danger">{{form.assigned_counsellor.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Expected Value</label>
+                                        {{form.expected_value}}
+                                        {% if form.expected_value.errors %}
+                                            <span class="text-danger">{{form.expected_value.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Address</label>
+                                        {{form.address}}
+                                        {% if form.address.errors %}
+                                            <span class="text-danger">{{form.address.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>City</label>
+                                        {{form.city}}
+                                        {% if form.city.errors %}
+                                            <span class="text-danger">{{form.city.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>State</label>
+                                        {{form.state}}
+                                        {% if form.state.errors %}
+                                            <span class="text-danger">{{form.state.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Country</label>
+                                        {{form.country}}
+                                        {% if form.country.errors %}
+                                            <span class="text-danger">{{form.country.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Postal Code</label>
+                                        {{form.postal_code}}
+                                        {% if form.postal_code.errors %}
+                                            <span class="text-danger">{{form.postal_code.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button type="submit" class="btn btn-primary">Add Lead</button>
+                            <a href="{% url 'manage_leads' %}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block custom_js %}
+<script>
+$(document).ready(function() {
+    // Function to toggle graduation details
+    function toggleGraduationDetails() {
+        var graduationStatus = $('#id_graduation_status').val();
+        if (graduationStatus === 'YES') {
+            $('#graduation-details').show();
+        } else {
+            $('#graduation-details').hide();
+            // Clear the fields when hidden
+            $('#id_graduation_course').val('');
+            $('#id_graduation_year').val('');
+            $('#id_graduation_college').val('');
+        }
+    }
+    
+    // Initial check
+    toggleGraduationDetails();
+    
+    // Listen for changes
+    $('#id_graduation_status').change(function() {
+        toggleGraduationDetails();
+    });
+});
+</script>
+{% endblock custom_js %}

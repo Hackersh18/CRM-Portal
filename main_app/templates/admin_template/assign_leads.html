@@ -1,0 +1,250 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card card-primary">
+                    <div class="card-header">
+                        <h3 class="card-title">Assign Leads to Counsellors</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Assignment Options:</strong> Choose how you want to assign unassigned leads to counsellors.
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title">Round-Robin Assignment</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p>Distribute leads evenly among all active counsellors:</p>
+                                        <ul>
+                                            <li>Leads are distributed in sequence</li>
+                                            <li>Each counsellor gets leads in rotation</li>
+                                            <li>Best for fair and equal distribution</li>
+                                        </ul>
+                                        <form method="POST" action="{% url 'assign_leads_to_counsellors' %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="assignment_method" value="round_robin">
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="fas fa-random"></i> Round-Robin Assignment
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title">Workload Balanced</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p>Assign leads to counsellors with the lightest workload:</p>
+                                        <ul>
+                                            <li>Considers current lead count per counsellor</li>
+                                            <li>Balances workload across the team</li>
+                                            <li>Best for maintaining equal workload</li>
+                                        </ul>
+                                        <form method="POST" action="{% url 'assign_leads_to_counsellors' %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="assignment_method" value="workload_balanced">
+                                            <button type="submit" class="btn btn-success">
+                                                <i class="fas fa-balance-scale"></i> Workload Balanced
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-4">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title">Performance Based</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p>Assign leads to top-performing counsellors:</p>
+                                        <ul>
+                                            <li>Based on conversion rates</li>
+                                            <li>Rewards high performers</li>
+                                            <li>Best for maximizing success rates</li>
+                                        </ul>
+                                        <form method="POST" action="{% url 'assign_leads_to_counsellors' %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="assignment_method" value="performance_based">
+                                            <button type="submit" class="btn btn-warning">
+                                                <i class="fas fa-trophy"></i> Performance Based
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title">Specialization Based</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p>Assign leads based on counsellor expertise:</p>
+                                        <ul>
+                                            <li>Considers graduation status and source expertise</li>
+                                            <li>Matches leads to counsellor strengths</li>
+                                            <li>Best for specialized teams</li>
+                                        </ul>
+                                        <form method="POST" action="{% url 'assign_leads_to_counsellors' %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="assignment_method" value="specialization_based">
+                                            <button type="submit" class="btn btn-info">
+                                                <i class="fas fa-user-graduate"></i> Specialization Based
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-4">
+                            <div class="col-md-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title">Manual Assignment</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p>Manually assign specific leads to counsellors for strategic control:</p>
+                                        <ul>
+                                            <li>Choose specific leads and counsellors</li>
+                                            <li>More control over assignments</li>
+                                            <li>Best for strategic assignments</li>
+                                        </ul>
+                                        <a href="{% url 'manage_leads' %}" class="btn btn-secondary">
+                                            <i class="fas fa-edit"></i> Go to Lead Management
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Unassigned Leads Summary -->
+                        <div class="row mt-4">
+                            <div class="col-md-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title">Unassigned Leads Summary</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <div class="info-box">
+                                                    <span class="info-box-icon bg-info">
+                                                        <i class="fas fa-users"></i>
+                                                    </span>
+                                                    <div class="info-box-content">
+                                                        <span class="info-box-text">Total Unassigned</span>
+                                                        <span class="info-box-number">{{unassigned_count}}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="info-box">
+                                                    <span class="info-box-icon bg-warning">
+                                                        <i class="fas fa-user-tie"></i>
+                                                    </span>
+                                                    <div class="info-box-content">
+                                                        <span class="info-box-text">Active Counsellors</span>
+                                                        <span class="info-box-number">{{active_counsellors_count}}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="info-box">
+                                                    <span class="info-box-icon bg-success">
+                                                        <i class="fas fa-chart-line"></i>
+                                                    </span>
+                                                    <div class="info-box-content">
+                                                        <span class="info-box-text">Avg Leads per Counsellor</span>
+                                                        <span class="info-box-number">{{avg_leads_per_counsellor}}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="info-box">
+                                                    <span class="info-box-icon bg-primary">
+                                                        <i class="fas fa-clock"></i>
+                                                    </span>
+                                                    <div class="info-box-content">
+                                                        <span class="info-box-text">Oldest Unassigned</span>
+                                                        <span class="info-box-number">{{oldest_unassigned_days}} days</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Counsellor Workload -->
+                        <div class="row mt-4">
+                            <div class="col-md-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title">Counsellor Workload</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <table class="table table-bordered">
+                                            <thead>
+                                                <tr>
+                                                    <th>Counsellor</th>
+                                                    <th>Department</th>
+                                                    <th>Current Leads</th>
+                                                    <th>Capacity</th>
+                                                    <th>Workload Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for counsellor in counsellor_workload %}
+                                                <tr>
+                                                    <td>{{counsellor.admin.first_name}} {{counsellor.admin.last_name}}</td>
+                                                    <td>{{counsellor.department|default:"Not assigned"}}</td>
+                                                    <td>{{counsellor.lead_count}}</td>
+                                                    <td>{{counsellor.capacity}}</td>
+                                                    <td>
+                                                        {% if counsellor.workload_status == 'LOW' %}
+                                                            <span class="badge badge-success">Low</span>
+                                                        {% elif counsellor.workload_status == 'MEDIUM' %}
+                                                            <span class="badge badge-warning">Medium</span>
+                                                        {% elif counsellor.workload_status == 'HIGH' %}
+                                                            <span class="badge badge-danger">High</span>
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <a href="{% url 'manage_leads' %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Back to Lead Management
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

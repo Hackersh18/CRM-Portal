@@ -1,0 +1,91 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Manage Lead Sources</h3>
+                        <div class="card-tools">
+                            <a href="{% url 'add_lead_source' %}" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Add Lead Source
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <table id="example1" class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Description</th>
+                                    <th>Lead Count</th>
+                                    <th>Status</th>
+                                    <th>Created Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if sources %}
+                                    {% for source in sources %}
+                                    <tr>
+                                        <td>{{source.id}}</td>
+                                        <td>{{source.name}}</td>
+                                        <td>{{source.description|default:"-"}}</td>
+                                        <td>
+                                            <span class="badge badge-info">{{source.lead_set.count}} leads</span>
+                                        </td>
+                                        <td>
+                                            {% if source.is_active %}
+                                                <span class="badge badge-success">Active</span>
+                                            {% else %}
+                                                <span class="badge badge-danger">Inactive</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{source.created_at|date:"M d, Y"}}</td>
+                                        <td>
+                                            <a href="{% url 'edit_lead_source' source.id %}" class="btn btn-sm btn-info">
+                                                <i class="fas fa-edit"></i> Edit
+                                            </a>
+                                            <a href="{% url 'delete_lead_source' source.id %}" class="btn btn-sm btn-danger" 
+                                               onclick="return confirm('Are you sure you want to delete this lead source?')">
+                                                <i class="fas fa-trash"></i> Delete
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="7" class="text-center text-muted">
+                                            <i class="fas fa-info-circle"></i> No lead sources found. 
+                                            <a href="{% url 'add_lead_source' %}">Add your first lead source</a>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block custom_js %}
+<script>
+    $(function () {
+        $("#example1").DataTable({
+            "responsive": true,
+            "lengthChange": false,
+            "autoWidth": false,
+            "buttons": ["copy", "csv", "excel", "pdf", "print", "colvis"]
+        }).buttons().container().appendTo('#example1_wrapper .col-md-6:eq(0)');
+    });
+</script>
+{% endblock custom_js %}

@@ -1,0 +1,117 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card card-warning">
+                    <div class="card-header">
+                        <h3 class="card-title">Transfer Lead: {{lead.first_name}} {{lead.last_name}}</h3>
+                    </div>
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i>
+                                <strong>Note:</strong> Transferring a lead will reassign it to a different counsellor and update the lead history.
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Lead Information</label>
+                                        <p class="form-control-static">
+                                            <strong>{{lead.first_name}} {{lead.last_name}}</strong><br>
+                                            {{lead.email}}<br>
+                                            {{lead.phone}}<br>
+                                            School: {{lead.school_name|default:"Not provided"}}<br>
+                                            Current Status: 
+                                            {% if lead.status == 'NEW' %}
+                                                <span class="badge badge-info">New</span>
+                                            {% elif lead.status == 'CONTACTED' %}
+                                                <span class="badge badge-warning">Contacted</span>
+                                            {% elif lead.status == 'QUALIFIED' %}
+                                                <span class="badge badge-success">Qualified</span>
+                                            {% elif lead.status == 'CLOSED_WON' %}
+                                                <span class="badge badge-primary">Closed Won</span>
+                                            {% elif lead.status == 'CLOSED_LOST' %}
+                                                <span class="badge badge-danger">Closed Lost</span>
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Current Counsellor</label>
+                                        <p class="form-control-static">
+                                            {% if lead.assigned_counsellor %}
+                                                <strong>{{lead.assigned_counsellor.admin.first_name}} {{lead.assigned_counsellor.admin.last_name}}</strong><br>
+                                                Employee ID: {{lead.assigned_counsellor.employee_id}}<br>
+                                                Department: {{lead.assigned_counsellor.department|default:"Not assigned"}}
+                                            {% else %}
+                                                <span class="text-muted">Not assigned</span>
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Transfer To Counsellor <span class="text-danger">*</span></label>
+                                        {{form.to_counsellor}}
+                                        {% if form.to_counsellor.errors %}
+                                            <span class="text-danger">{{form.to_counsellor.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Reason for Transfer <span class="text-danger">*</span></label>
+                                        {{form.reason}}
+                                        {% if form.reason.errors %}
+                                            <span class="text-danger">{{form.reason.errors}}</span>
+                                        {% endif %}
+                                        <small class="form-text text-muted">
+                                            Please provide a clear reason for transferring this lead
+                                        </small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Additional Notes</label>
+                                        <textarea name="additional_notes" class="form-control" rows="3" placeholder="Any additional information for the new counsellor..."></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Transfer Options</label>
+                                        <div class="form-check">
+                                            <input type="checkbox" name="notify_current_counsellor" class="form-check-input" id="notify_current_counsellor" checked>
+                                            <label class="form-check-label" for="notify_current_counsellor">
+                                                Notify current counsellor about the transfer
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input type="checkbox" name="notify_new_counsellor" class="form-check-input" id="notify_new_counsellor" checked>
+                                            <label class="form-check-label" for="notify_new_counsellor">
+                                                Notify new counsellor about the assignment
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input type="checkbox" name="update_lead_status" class="form-check-input" id="update_lead_status">
+                                            <label class="form-check-label" for="update_lead_status">
+                                                Update lead status to "Transferred"
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button type="submit" class="btn btn-warning">
+                                <i class="fas fa-exchange-alt"></i> Transfer Lead
+                            </button>
+                            <a href="{% url 'manage_leads' %}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

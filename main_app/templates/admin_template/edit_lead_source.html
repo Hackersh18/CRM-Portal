@@ -1,0 +1,50 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card card-primary">
+                    <div class="card-header">
+                        <h3 class="card-title">Edit Lead Source: {{lead_source.name}}</h3>
+                    </div>
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>Source Name</label>
+                                {{form.name}}
+                                {% if form.name.errors %}
+                                    <span class="text-danger">{{form.name.errors}}</span>
+                                {% endif %}
+                            </div>
+                            <div class="form-group">
+                                <label>Description</label>
+                                {{form.description}}
+                                {% if form.description.errors %}
+                                    <span class="text-danger">{{form.description.errors}}</span>
+                                {% endif %}
+                            </div>
+                            <div class="form-group">
+                                <label>Status</label>
+                                {{form.is_active}}
+                                {% if form.is_active.errors %}
+                                    <span class="text-danger">{{form.is_active.errors}}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button type="submit" class="btn btn-primary">Update Lead Source</button>
+                            <a href="{% url 'manage_lead_sources' %}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

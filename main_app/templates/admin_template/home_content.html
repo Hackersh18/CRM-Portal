@@ -1,0 +1,337 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block custom_css %}
+<style>
+    .info-box {
+        box-shadow: 0 0 1px rgba(0,0,0,.125), 0 1px 3px rgba(0,0,0,.2);
+        border-radius: 0.25rem;
+        background-color: #fff;
+        display: flex;
+        margin-bottom: 1rem;
+        min-height: 80px;
+        padding: .5rem;
+        position: relative;
+        width: 100%;
+    }
+    
+    .info-box-icon {
+        border-radius: 0.25rem;
+        display: flex;
+        align-items: center;
+        font-size: 1.875rem;
+        justify-content: center;
+        text-align: center;
+        width: 70px;
+        flex-shrink: 0;
+    }
+    
+    .info-box-content {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        height: 100%;
+        flex: 1;
+        padding: 0 10px;
+    }
+    
+    .info-box-text {
+        display: block;
+        font-size: 1rem;
+        margin: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .info-box-number {
+        display: block;
+        font-weight: 700;
+        font-size: 1.25rem;
+        margin: 0;
+    }
+</style>
+{% endblock custom_css %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <!-- Info boxes -->
+        <div class="row">
+            <div class="col-12 col-sm-6 col-md-3">
+                <div class="info-box">
+                    <span class="info-box-icon bg-info">
+                        <i class="fas fa-user-tie"></i>
+                    </span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Total Counsellors</span>
+                        <span class="info-box-number">{{total_counsellors}}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <div class="info-box">
+                    <span class="info-box-icon bg-success">
+                        <i class="fas fa-users"></i>
+                    </span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Total Leads</span>
+                        <span class="info-box-number">{{total_leads}}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <div class="info-box">
+                    <span class="info-box-icon bg-warning">
+                        <i class="fas fa-briefcase"></i>
+                    </span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Total Business</span>
+                        <span class="info-box-number">₹{{total_business|floatformat:0}}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <div class="info-box">
+                    <span class="info-box-icon bg-danger">
+                        <i class="fas fa-chart-line"></i>
+                    </span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Monthly Business</span>
+                        <span class="info-box-number">₹{{monthly_business|floatformat:0}}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8">
+                <!-- Lead Status Chart -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Lead Status Distribution</h3>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="leadStatusChart" style="height: 300px;"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <!-- Lead Status Summary -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Lead Status Summary</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-box">
+                            <span class="info-box-icon bg-info">
+                                <i class="fas fa-plus"></i>
+                            </span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">New Leads</span>
+                                <span class="info-box-number">{{new_leads}}</span>
+                            </div>
+                        </div>
+                        <div class="info-box">
+                            <span class="info-box-icon bg-warning">
+                                <i class="fas fa-phone"></i>
+                            </span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Contacted</span>
+                                <span class="info-box-number">{{contacted_leads}}</span>
+                            </div>
+                        </div>
+                        <div class="info-box">
+                            <span class="info-box-icon bg-success">
+                                <i class="fas fa-check"></i>
+                            </span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Qualified</span>
+                                <span class="info-box-number">{{qualified_leads}}</span>
+                            </div>
+                        </div>
+                        <div class="info-box">
+                            <span class="info-box-icon bg-primary">
+                                <i class="fas fa-trophy"></i>
+                            </span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Closed Won</span>
+                                <span class="info-box-number">{{closed_won}}</span>
+                            </div>
+                        </div>
+                        <div class="info-box">
+                            <span class="info-box-icon bg-danger">
+                                <i class="fas fa-times"></i>
+                            </span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Closed Lost</span>
+                                <span class="info-box-number">{{closed_lost}}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <!-- Monthly Trend Chart -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Monthly Trends</h3>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="monthlyTrendChart" style="height: 300px;"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <!-- Lead Sources Chart -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Lead Sources</h3>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="leadSourcesChart" style="height: 300px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <!-- Recent Activities -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Recent Activities</h3>
+                    </div>
+                    <div class="card-body">
+                        {% if recent_activities %}
+                            <div class="timeline">
+                                {% for activity in recent_activities %}
+                                <div class="time-label">
+                                    <span class="bg-blue">{{activity.completed_date|date:"M d, Y"}}</span>
+                                </div>
+                                <div>
+                                    <i class="fas fa-tasks bg-green"></i>
+                                    <div class="timeline-item">
+                                        <span class="time"><i class="fas fa-clock"></i> {{activity.completed_date|time:"H:i"}}</span>
+                                        <h3 class="timeline-header">{{activity.counsellor.admin.first_name}} {{activity.counsellor.admin.last_name}}</h3>
+                                        <div class="timeline-body">
+                                            <strong>{{activity.subject}}</strong><br>
+                                            {{activity.description}}<br>
+                                            <small>Lead: {{activity.lead.first_name}} {{activity.lead.last_name}}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-muted">No recent activities.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block custom_js %}
+<script src="{% static 'plugins/chart.js/Chart.min.js' %}"></script>
+<script>
+    // Lead Status Chart
+    var leadStatusCtx = document.getElementById('leadStatusChart').getContext('2d');
+    var leadStatusChart = new Chart(leadStatusCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['New', 'Contacted', 'Qualified', 'Closed Won', 'Closed Lost'],
+            datasets: [{
+                data: [{{new_leads}}, {{contacted_leads}}, {{qualified_leads}}, {{closed_won}}, {{closed_lost}}],
+                backgroundColor: ['#17a2b8', '#ffc107', '#28a745', '#007bff', '#dc3545'],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            legend: {
+                position: 'bottom'
+            }
+        }
+    });
+    
+    // Monthly Trend Chart
+    var monthlyTrendCtx = document.getElementById('monthlyTrendChart').getContext('2d');
+    var monthlyTrendChart = new Chart(monthlyTrendCtx, {
+        type: 'line',
+        data: {
+            labels: [{% for item in monthly_trend %}'{{item.month}}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+            datasets: [{
+                label: 'Leads',
+                data: [{% for item in monthly_trend %}{{item.leads}}{% if not forloop.last %}, {% endif %}{% endfor %}],
+                borderColor: '#28a745',
+                backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                tension: 0.1
+            }, {
+                label: 'Business Value (₹)',
+                data: [{% for item in monthly_trend %}{{item.business}}{% if not forloop.last %}, {% endif %}{% endfor %}],
+                borderColor: '#007bff',
+                backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                tension: 0.1,
+                yAxisID: 'y1'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Number of Leads'
+                    }
+                },
+                y1: {
+                    beginAtZero: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Business Value (₹)'
+                    },
+                    grid: {
+                        drawOnChartArea: false
+                    }
+                }
+            }
+        }
+    });
+    
+    // Lead Sources Chart
+    var leadSourcesCtx = document.getElementById('leadSourcesChart').getContext('2d');
+    var leadSourcesChart = new Chart(leadSourcesCtx, {
+        type: 'pie',
+        data: {
+            labels: [{% for source in lead_sources %}'{{source.name}}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+            datasets: [{
+                data: [{% for source in lead_sources %}{{source.lead_count}}{% if not forloop.last %}, {% endif %}{% endfor %}],
+                backgroundColor: ['#ffc107', '#17a2b8', '#28a745', '#dc3545', '#6f42c1', '#fd7e14'],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            legend: {
+                position: 'bottom'
+            }
+        }
+    });
+</script>
+{% endblock custom_js %}

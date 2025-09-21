@@ -1,0 +1,114 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card card-danger">
+                    <div class="card-header">
+                        <h3 class="card-title">Mark Lead as Lost: {{lead.first_name}} {{lead.last_name}}</h3>
+                    </div>
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="card-body">
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <strong>Warning:</strong> This action will mark the lead as "Closed Lost" and cannot be easily undone.
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Lead Information</label>
+                                        <p class="form-control-static">
+                                            <strong>{{lead.first_name}} {{lead.last_name}}</strong><br>
+                                            {{lead.email}}<br>
+                                            {{lead.phone}}<br>
+                                            School: {{lead.school_name|default:"Not provided"}}<br>
+                                            Current Status: 
+                                            {% if lead.status == 'NEW' %}
+                                                <span class="badge badge-info">New</span>
+                                            {% elif lead.status == 'CONTACTED' %}
+                                                <span class="badge badge-warning">Contacted</span>
+                                            {% elif lead.status == 'QUALIFIED' %}
+                                                <span class="badge badge-success">Qualified</span>
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Reason for Loss <span class="text-danger">*</span></label>
+                                        <select name="loss_reason" class="form-control" required>
+                                            <option value="">Select Reason</option>
+                                            <option value="NO_RESPONSE">No Response</option>
+                                            <option value="NOT_INTERESTED">Not Interested</option>
+                                            <option value="COMPETITOR">Went with Competitor</option>
+                                            <option value="BUDGET">Budget Constraints</option>
+                                            <option value="TIMING">Bad Timing</option>
+                                            <option value="REQUIREMENTS">Requirements Not Met</option>
+                                            <option value="OTHER">Other</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Detailed Explanation <span class="text-danger">*</span></label>
+                                        <textarea name="loss_explanation" class="form-control" rows="4" placeholder="Please provide a detailed explanation of why this lead was lost..." required></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Lessons Learned</label>
+                                        <textarea name="lessons_learned" class="form-control" rows="3" placeholder="What could we have done differently? Any lessons learned?"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Future Follow-up (Optional)</label>
+                                <div class="form-check">
+                                    <input type="checkbox" name="future_followup" class="form-check-input" id="future_followup">
+                                    <label class="form-check-label" for="future_followup">
+                                        Schedule a future follow-up for this lead
+                                    </label>
+                                </div>
+                                <div id="followup_details" style="display: none; margin-top: 15px;">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <label>Follow-up Date</label>
+                                            <input type="date" name="followup_date" class="form-control">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label>Follow-up Notes</label>
+                                            <textarea name="followup_notes" class="form-control" rows="2" placeholder="Reason for future follow-up..."></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button type="submit" class="btn btn-danger">Mark as Lost</button>
+                            <a href="{% url 'lead_detail' lead.id %}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block custom_js %}
+<script>
+    $(document).ready(function() {
+        $('#future_followup').change(function() {
+            if (this.checked) {
+                $('#followup_details').show();
+            } else {
+                $('#followup_details').hide();
+            }
+        });
+    });
+</script>
+{% endblock custom_js %}

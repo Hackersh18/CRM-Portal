@@ -1,0 +1,316 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block custom_css %}
+<style>
+    .info-box {
+        box-shadow: 0 0 1px rgba(0,0,0,.125), 0 1px 3px rgba(0,0,0,.2);
+        border-radius: 0.25rem;
+        background-color: #fff;
+        display: flex;
+        margin-bottom: 1rem;
+        min-height: 80px;
+        padding: .5rem;
+        position: relative;
+        width: 100%;
+    }
+    
+    .info-box-icon {
+        border-radius: 0.25rem;
+        display: flex;
+        align-items: center;
+        font-size: 1.875rem;
+        justify-content: center;
+        text-align: center;
+        width: 70px;
+        flex-shrink: 0;
+    }
+    
+    .info-box-content {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        height: 100%;
+        flex: 1;
+        padding: 0 10px;
+    }
+    
+    .info-box-text {
+        display: block;
+        font-size: 1rem;
+        margin: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .info-box-number {
+        display: block;
+        font-weight: 700;
+        font-size: 1.25rem;
+        margin: 0;
+    }
+</style>
+{% endblock custom_css %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <!-- Welcome Message -->
+        <div class="row">
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <h5><i class="icon fas fa-info"></i> Welcome back, {{counsellor.admin.first_name}}!</h5>
+                    <p>Here's your performance overview and recent activities.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="row">
+            <div class="col-12 col-sm-6 col-md-3">
+                <div class="info-box">
+                    <span class="info-box-icon bg-info">
+                        <i class="fas fa-users"></i>
+                    </span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Total Leads</span>
+                        <span class="info-box-number">{{total_leads}}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <div class="info-box">
+                    <span class="info-box-icon bg-success">
+                        <i class="fas fa-briefcase"></i>
+                    </span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Active Business</span>
+                        <span class="info-box-number">₹{{total_business_value|floatformat:0}}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <div class="info-box">
+                    <span class="info-box-icon bg-warning">
+                        <i class="fas fa-clock"></i>
+                    </span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Pending Follow-ups</span>
+                        <span class="info-box-number">{{upcoming_followups|length}}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <div class="info-box">
+                    <span class="info-box-icon bg-primary">
+                        <i class="fas fa-chart-line"></i>
+                    </span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Monthly Business</span>
+                        <span class="info-box-number">₹{{monthly_business|floatformat:0}}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8">
+                <!-- Lead Status Chart -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">My Lead Status Distribution</h3>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="leadStatusChart" style="height: 300px;"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <!-- Lead Status Summary -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Lead Status Summary</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-box">
+                            <span class="info-box-icon bg-info">
+                                <i class="fas fa-plus"></i>
+                            </span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">New Leads</span>
+                                <span class="info-box-number">{{new_leads}}</span>
+                            </div>
+                        </div>
+                        <div class="info-box">
+                            <span class="info-box-icon bg-warning">
+                                <i class="fas fa-phone"></i>
+                            </span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Contacted</span>
+                                <span class="info-box-number">{{contacted_leads}}</span>
+                            </div>
+                        </div>
+                        <div class="info-box">
+                            <span class="info-box-icon bg-success">
+                                <i class="fas fa-check"></i>
+                            </span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Qualified</span>
+                                <span class="info-box-number">{{qualified_leads}}</span>
+                            </div>
+                        </div>
+                        <div class="info-box">
+                            <span class="info-box-icon bg-primary">
+                                <i class="fas fa-trophy"></i>
+                            </span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Closed Won</span>
+                                <span class="info-box-number">{{closed_won}}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <!-- Recent Activities -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Recent Activities</h3>
+                    </div>
+                    <div class="card-body">
+                        {% if recent_activities %}
+                            <div class="timeline">
+                                {% for activity in recent_activities %}
+                                <div class="time-label">
+                                    <span class="bg-blue">{{activity.completed_date|date:"M d, Y"}}</span>
+                                </div>
+                                <div>
+                                    <i class="fas fa-tasks bg-green"></i>
+                                    <div class="timeline-item">
+                                        <span class="time"><i class="fas fa-clock"></i> {{activity.completed_date|time:"H:i"}}</span>
+                                        <h3 class="timeline-header">{{activity.get_activity_type_display}}</h3>
+                                        <div class="timeline-body">
+                                            <strong>{{activity.subject}}</strong><br>
+                                            {{activity.description}}<br>
+                                            <small>Lead: {{activity.lead.first_name}} {{activity.lead.last_name}}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-muted">No recent activities.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <!-- Upcoming Follow-ups -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Upcoming Follow-ups</h3>
+                    </div>
+                    <div class="card-body">
+                        {% if upcoming_followups %}
+                            <div class="timeline">
+                                {% for lead in upcoming_followups %}
+                                <div class="time-label">
+                                    <span class="bg-warning">{{lead.next_follow_up|date:"M d, Y"}}</span>
+                                </div>
+                                <div>
+                                    <i class="fas fa-calendar bg-info"></i>
+                                    <div class="timeline-item">
+                                        <span class="time"><i class="fas fa-clock"></i> {{lead.next_follow_up|time:"H:i"}}</span>
+                                        <h3 class="timeline-header">Follow-up Due</h3>
+                                        <div class="timeline-body">
+                                            <strong>{{lead.first_name}} {{lead.last_name}}</strong><br>
+                                            <small>School: {{lead.school_name|default:"Not provided"}}</small><br>
+                                            <small>Status: {{lead.get_status_display}}</small>
+                                        </div>
+                                        <div class="timeline-footer">
+                                            <a href="{% url 'lead_detail' lead.id %}" class="btn btn-sm btn-primary">
+                                                <i class="fas fa-eye"></i> View Lead
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-muted">No upcoming follow-ups.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Quick Actions</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <a href="{% url 'my_leads' %}" class="btn btn-primary btn-block mb-3">
+                                    <i class="fas fa-users"></i> View My Leads
+                                </a>
+                            </div>
+                            <div class="col-md-3">
+                                <a href="{% url 'my_businesses' %}" class="btn btn-success btn-block mb-3">
+                                    <i class="fas fa-briefcase"></i> My Businesses
+                                </a>
+                            </div>
+                            <div class="col-md-3">
+                                <a href="{% url 'my_activities' %}" class="btn btn-info btn-block mb-3">
+                                    <i class="fas fa-tasks"></i> My Activities
+                                </a>
+                            </div>
+                            <div class="col-md-3">
+                                <a href="{% url 'get_my_analytics' %}" class="btn btn-warning btn-block mb-3">
+                                    <i class="fas fa-chart-bar"></i> Performance Analytics
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block custom_js %}
+<script src="{% static 'plugins/chart.js/Chart.min.js' %}"></script>
+<script>
+    // Lead Status Chart
+    var leadStatusCtx = document.getElementById('leadStatusChart').getContext('2d');
+    var leadStatusChart = new Chart(leadStatusCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['New', 'Contacted', 'Qualified', 'Closed Won'],
+            datasets: [{
+                data: [{{new_leads}}, {{contacted_leads}}, {{qualified_leads}}, {{closed_won}}],
+                backgroundColor: ['#17a2b8', '#ffc107', '#28a745', '#007bff'],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            legend: {
+                position: 'bottom'
+            }
+        }
+    });
+</script>
+{% endblock custom_js %}

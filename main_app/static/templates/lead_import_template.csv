@@ -1,0 +1,4 @@
+first_name,last_name,email,phone,School Name,graduation_status,graduation_course,graduation_year,graduation_college,course_interested,expected_value
+John,Doe,john.doe@example.com,1234567890,MIT University,YES,Computer Science,2020,MIT,MBA,5000.0
+Jane,Smith,jane.smith@example.com,9876543210,Harvard University,NO,Not Applicable,,Not Applicable,Digital Marketing,3000.0
+Mike,Johnson,mike.johnson@example.com,5551234567,Stanford University,YES,Business Administration,2018,Harvard Business School,CFA Certification,7500.0

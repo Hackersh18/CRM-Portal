@@ -1,0 +1,205 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card card-primary">
+                    <div class="card-header">
+                        <h3 class="card-title">Import Leads from Excel/CSV</h3>
+                    </div>
+                    <form method="POST" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i>
+                                <strong>Instructions:</strong> Upload an Excel (.xlsx) or CSV file with the following columns:
+                                <ul class="mb-0 mt-2">
+                                    <li><strong>Required:</strong> first_name, last_name, email, phone, course_interested</li>
+                                    <li><strong>Optional:</strong> School Name, graduation_status (YES/NO), graduation_course, graduation_year, graduation_college, expected_value</li>
+                                    <li><strong>Note:</strong> If graduation_status is "NO", graduation_course and graduation_college will be set to "Not Applicable"</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Select File <span class="text-danger">*</span></label>
+                                        {{form.file}}
+                                        {% if form.file.errors %}
+                                            <span class="text-danger">{{form.file.errors}}</span>
+                                        {% endif %}
+                                        <small class="form-text text-muted">
+                                            Supported formats: .xlsx, .csv (Max size: 10MB)
+                                        </small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Lead Source <span class="text-danger">*</span></label>
+                                        {{form.source}}
+                                        {% if form.source.errors %}
+                                            <span class="text-danger">{{form.source.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Assign to Counsellor (Optional)</label>
+                                        {{form.assigned_counsellor}}
+                                        {% if form.assigned_counsellor.errors %}
+                                            <span class="text-danger">{{form.assigned_counsellor.errors}}</span>
+                                        {% endif %}
+                                        <small class="form-text text-muted">
+                                            Leave blank to assign automatically
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="form-group">
+                                        <label>Default Values (Optional)</label>
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <label>Default Status</label>
+                                                <select name="default_status" class="form-control">
+                                                    <option value="NEW">New</option>
+                                                    <option value="CONTACTED">Contacted</option>
+                                                    <option value="QUALIFIED">Qualified</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label>Default Priority</label>
+                                                <select name="default_priority" class="form-control">
+                                                    <option value="MEDIUM">Medium</option>
+                                                    <option value="LOW">Low</option>
+                                                    <option value="HIGH">High</option>
+                                                    <option value="URGENT">Urgent</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label>Default Expected Value</label>
+                                                <input type="number" name="default_value" class="form-control" placeholder="0.00" step="0.01">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="form-group">
+                                        <label>Import Options</label>
+                                        <div class="form-check">
+                                            <input type="checkbox" name="skip_duplicates" class="form-check-input" id="skip_duplicates" checked>
+                                            <label class="form-check-label" for="skip_duplicates">
+                                                Skip duplicate emails (recommended)
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input type="checkbox" name="send_notifications" class="form-check-input" id="send_notifications">
+                                            <label class="form-check-label" for="send_notifications">
+                                                Send notifications to assigned counsellors
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="form-group">
+                                        <label>Automatic Assignment Options</label>
+                                        <div class="form-check">
+                                            <input type="checkbox" name="auto_assign" class="form-check-input" id="auto_assign">
+                                            <label class="form-check-label" for="auto_assign">
+                                                Automatically assign leads to counsellors after import
+                                            </label>
+                                            <small class="form-text text-muted">
+                                                Only works if no specific counsellor is selected above
+                                            </small>
+                                        </div>
+                                        
+                                        <div id="assignment_method_options" style="display: none; margin-top: 15px;">
+                                            <label>Assignment Method:</label>
+                                            <div class="form-check">
+                                                <input type="radio" name="assignment_method" value="round_robin" class="form-check-input" id="round_robin" checked>
+                                                <label class="form-check-label" for="round_robin">
+                                                    Round-Robin (Equal distribution)
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input type="radio" name="assignment_method" value="workload_balanced" class="form-check-input" id="workload_balanced">
+                                                <label class="form-check-label" for="workload_balanced">
+                                                    Workload Balanced (Lightest workload first)
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input type="radio" name="assignment_method" value="performance_based" class="form-check-input" id="performance_based">
+                                                <label class="form-check-label" for="performance_based">
+                                                    Performance Based (Top performers first)
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input type="radio" name="assignment_method" value="specialization_based" class="form-check-input" id="specialization_based">
+                                                <label class="form-check-label" for="specialization_based">
+                                                    Specialization Based (Expertise matching)
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-upload"></i> Import Leads
+                            </button>
+                            <a href="{% url 'manage_leads' %}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sample Template Download -->
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Download Sample Template</h3>
+                    </div>
+                    <div class="card-body">
+                        <p>Download a sample template to see the required format:</p>
+                        <a href="{% url 'download_import_template' 'excel' %}" class="btn btn-success">
+                            <i class="fas fa-download"></i> Download Excel Template
+                        </a>
+                        <a href="{% url 'download_import_template' 'csv' %}" class="btn btn-info">
+                            <i class="fas fa-download"></i> Download CSV Template
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const autoAssignCheckbox = document.getElementById('auto_assign');
+    const assignmentMethodOptions = document.getElementById('assignment_method_options');
+    
+    autoAssignCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+            assignmentMethodOptions.style.display = 'block';
+        } else {
+            assignmentMethodOptions.style.display = 'none';
+        }
+    });
+});
+</script>

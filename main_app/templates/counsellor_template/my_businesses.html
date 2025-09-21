@@ -1,0 +1,85 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">My Businesses</h3>
+                    </div>
+                    <div class="card-body">
+                        {% if businesses %}
+                            <table id="example1" class="table table-bordered table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Title</th>
+                                        <th>Lead</th>
+                                        <th>Value</th>
+                                        <th>Status</th>
+                                        <th>Start Date</th>
+                                        <th>End Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for business in businesses %}
+                                    <tr>
+                                        <td>{{business.id}}</td>
+                                        <td>{{business.title}}</td>
+                                        <td>{{business.lead.first_name}} {{business.lead.last_name}}</td>
+                                        <td>₹{{business.value}}</td>
+                                        <td>
+                                            {% if business.status == 'ACTIVE' %}
+                                                <span class="badge badge-success">Active</span>
+                                            {% elif business.status == 'PENDING' %}
+                                                <span class="badge badge-warning">Pending</span>
+                                            {% elif business.status == 'COMPLETED' %}
+                                                <span class="badge badge-info">Completed</span>
+                                            {% elif business.status == 'CANCELLED' %}
+                                                <span class="badge badge-danger">Cancelled</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{business.start_date|date:"M d, Y"}}</td>
+                                        <td>{{business.end_date|date:"M d, Y"}}</td>
+                                        <td>
+                                            <a href="{% url 'business_detail' business.id %}" class="btn btn-sm btn-info">
+                                                <i class="fas fa-eye"></i> View
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <div class="text-center py-5">
+                                <i class="fas fa-briefcase fa-3x text-muted mb-3"></i>
+                                <h4 class="text-muted">No Businesses</h4>
+                                <p class="text-muted">You haven't generated any businesses yet.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block custom_js %}
+<script>
+    $(function () {
+        $("#example1").DataTable({
+            "responsive": true,
+            "lengthChange": false,
+            "autoWidth": false,
+            "buttons": ["copy", "csv", "excel", "pdf", "print", "colvis"]
+        }).buttons().container().appendTo('#example1_wrapper .col-md-6:eq(0)');
+    });
+</script>
+{% endblock custom_js %}

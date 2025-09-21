@@ -1,0 +1,253 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block custom_css %}
+<style>
+    .analytics-card {
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+    }
+    
+    .analytics-card:hover {
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+        transform: translateY(-2px);
+    }
+    
+    .analytics-header {
+        background: linear-gradient(45deg, #28a745, #20c997);
+        color: white;
+        padding: 20px;
+        border-radius: 15px 15px 0 0;
+    }
+    
+    .analytics-body {
+        padding: 20px;
+    }
+    
+    .metric-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .metric-item:last-child {
+        border-bottom: none;
+    }
+    
+    .metric-label {
+        font-weight: 600;
+        color: #555;
+    }
+    
+    .metric-value {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #28a745;
+    }
+    
+    .conversion-rate {
+        font-size: 1.5rem;
+        font-weight: 700;
+        text-align: center;
+        padding: 20px;
+        background: linear-gradient(45deg, #007bff, #6610f2);
+        color: white;
+        border-radius: 10px;
+        margin-top: 15px;
+    }
+</style>
+{% endblock custom_css %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">My Performance Analytics</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="analytics-card">
+                                    <div class="analytics-header">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-chart-line mr-2"></i>
+                                            Lead Performance
+                                        </h5>
+                                    </div>
+                                    <div class="analytics-body">
+                                        <div class="metric-item">
+                                            <span class="metric-label">Total Leads Assigned:</span>
+                                            <span class="metric-value">{{total_leads}}</span>
+                                        </div>
+                                        <div class="metric-item">
+                                            <span class="metric-label">New Leads:</span>
+                                            <span class="metric-value">{{new_leads}}</span>
+                                        </div>
+                                        <div class="metric-item">
+                                            <span class="metric-label">Contacted Leads:</span>
+                                            <span class="metric-value">{{contacted_leads}}</span>
+                                        </div>
+                                        <div class="metric-item">
+                                            <span class="metric-label">Qualified Leads:</span>
+                                            <span class="metric-value">{{qualified_leads}}</span>
+                                        </div>
+                                        <div class="metric-item">
+                                            <span class="metric-label">Closed Won:</span>
+                                            <span class="metric-value">{{closed_won}}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="analytics-card">
+                                    <div class="analytics-header">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-briefcase mr-2"></i>
+                                            Business Performance
+                                        </h5>
+                                    </div>
+                                    <div class="analytics-body">
+                                        <div class="metric-item">
+                                            <span class="metric-label">Total Business Value:</span>
+                                            <span class="metric-value">₹{{total_business_value|floatformat:0}}</span>
+                                        </div>
+                                        <div class="metric-item">
+                                            <span class="metric-label">Active Businesses:</span>
+                                            <span class="metric-value">{{active_businesses}}</span>
+                                        </div>
+                                        <div class="metric-item">
+                                            <span class="metric-label">Pending Businesses:</span>
+                                            <span class="metric-value">{{pending_businesses}}</span>
+                                        </div>
+                                        <div class="metric-item">
+                                            <span class="metric-label">Monthly Business:</span>
+                                            <span class="metric-value">₹{{monthly_business|floatformat:0}}</span>
+                                        </div>
+                                        
+                                        <div class="conversion-rate">
+                                            {% if total_leads > 0 %}
+                                                {{conversion_rate|floatformat:1}}% Conversion Rate
+                                            {% else %}
+                                                0% Conversion Rate
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Charts Row -->
+                        <div class="row mt-4">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">Lead Status Distribution</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="leadStatusChart" style="height: 300px;"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">Monthly Performance</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="monthlyChart" style="height: 300px;"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block custom_js %}
+<script src="{% static 'plugins/chart.js/Chart.min.js' %}"></script>
+<script>
+    // Lead Status Chart
+    var leadStatusCtx = document.getElementById('leadStatusChart').getContext('2d');
+    var leadStatusChart = new Chart(leadStatusCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['New', 'Contacted', 'Qualified', 'Closed Won'],
+            datasets: [{
+                data: [{{new_leads}}, {{contacted_leads}}, {{qualified_leads}}, {{closed_won}}],
+                backgroundColor: ['#ffc107', '#17a2b8', '#28a745', '#007bff'],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            legend: {
+                position: 'bottom'
+            }
+        }
+    });
+    
+    // Monthly Performance Chart
+    var monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
+    var monthlyChart = new Chart(monthlyCtx, {
+        type: 'line',
+        data: {
+            labels: ['Current Month'],
+            datasets: [{
+                label: 'Leads',
+                data: [{{monthly_leads}}],
+                borderColor: '#28a745',
+                backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                tension: 0.1
+            }, {
+                label: 'Business Value (₹)',
+                data: [{{monthly_business}}],
+                borderColor: '#007bff',
+                backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                tension: 0.1,
+                yAxisID: 'y1'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Number of Leads'
+                    }
+                },
+                y1: {
+                    beginAtZero: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Business Value (₹)'
+                    },
+                    grid: {
+                        drawOnChartArea: false
+                    }
+                }
+            }
+        }
+    });
+</script>
+{% endblock custom_js %}

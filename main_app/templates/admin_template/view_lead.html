@@ -1,0 +1,419 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <!-- Lead Information Card -->
+                <div class="card card-primary">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-user"></i> Lead Information
+                        </h3>
+                        <div class="card-tools">
+                            {% if not lead.assigned_counsellor %}
+                                <a href="{% url 'ai_assign_counsellor' lead.id %}" class="btn btn-success btn-sm">
+                                    <i class="fas fa-user-plus"></i> AI Assign Counsellor
+                                </a>
+                            {% endif %}
+                            {% if lead.assigned_counsellor %}
+                                <a href="{% url 'admin_run_ai_workflow' lead.id %}" class="btn btn-info btn-sm">
+                                    <i class="fas fa-robot"></i> Run AI Workflow
+                                </a>
+                            {% else %}
+                                <button class="btn btn-info btn-sm" disabled title="Lead must be assigned to a counsellor to run AI workflow">
+                                    <i class="fas fa-robot"></i> Run AI Workflow
+                                </button>
+                            {% endif %}
+                            <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#manualRoutingModal">
+                                <i class="fas fa-route"></i> Manual Route
+                            </button>
+                            <a href="{% url 'edit_lead' lead.id %}" class="btn btn-warning btn-sm">
+                                <i class="fas fa-edit"></i> Edit Lead
+                            </a>
+                            <a href="{% url 'manage_leads' %}" class="btn btn-secondary btn-sm">
+                                <i class="fas fa-arrow-left"></i> Back to Leads
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        {% if not lead.assigned_counsellor %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i> 
+                            <strong>Warning:</strong> This lead is not assigned to any counsellor. 
+                            AI Workflow requires a counsellor assignment to function properly.
+                        </div>
+                        {% endif %}
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5><i class="fas fa-id-card"></i> Basic Information</h5>
+                                <table class="table table-borderless">
+                                    <tr>
+                                        <td><strong>Lead ID:</strong></td>
+                                        <td>{{lead.lead_id}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Name:</strong></td>
+                                        <td>{{lead.first_name}} {{lead.last_name}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Email:</strong></td>
+                                        <td>{{lead.email}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Phone:</strong></td>
+                                        <td>{{lead.phone}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>School Name:</strong></td>
+                                        <td>{{lead.school_name|default:"Not provided"}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Position:</strong></td>
+                                        <td>{{lead.position|default:"Not provided"}}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <h5><i class="fas fa-graduation-cap"></i> Education Information</h5>
+                                <table class="table table-borderless">
+                                    <tr>
+                                        <td><strong>Graduation Status:</strong></td>
+                                        <td>
+                                            {% if lead.graduation_status == 'YES' %}
+                                                <span class="badge badge-success">Yes</span>
+                                            {% else %}
+                                                <span class="badge badge-secondary">No</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% if lead.graduation_status == 'YES' %}
+                                    <tr>
+                                        <td><strong>Graduation Course:</strong></td>
+                                        <td>{{lead.graduation_course|default:"Not provided"}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Graduation Year:</strong></td>
+                                        <td>{{lead.graduation_year|default:"Not provided"}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Graduation College:</strong></td>
+                                        <td>{{lead.graduation_college|default:"Not provided"}}</td>
+                                    </tr>
+                                    {% endif %}
+                                    <tr>
+                                        <td><strong>Course Interested:</strong></td>
+                                        <td>{{lead.course_interested|default:"Not provided"}}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <h5><i class="fas fa-chart-line"></i> Lead Status & Value</h5>
+                                <table class="table table-borderless">
+                                    <tr>
+                                        <td><strong>Status:</strong></td>
+                                        <td>
+                                            {% if lead.status == 'NEW' %}
+                                                <span class="badge badge-info">New</span>
+                                            {% elif lead.status == 'CONTACTED' %}
+                                                <span class="badge badge-warning">Contacted</span>
+                                            {% elif lead.status == 'QUALIFIED' %}
+                                                <span class="badge badge-success">Qualified</span>
+                                            {% elif lead.status == 'CONVERTED' %}
+                                                <span class="badge badge-primary">Converted</span>
+                                            {% elif lead.status == 'LOST' %}
+                                                <span class="badge badge-danger">Lost</span>
+                                            {% else %}
+                                                <span class="badge badge-secondary">{{lead.status}}</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Priority:</strong></td>
+                                        <td>
+                                            {% if lead.priority == 'LOW' %}
+                                                <span class="badge badge-secondary">Low</span>
+                                            {% elif lead.priority == 'MEDIUM' %}
+                                                <span class="badge badge-warning">Medium</span>
+                                            {% elif lead.priority == 'HIGH' %}
+                                                <span class="badge badge-danger">High</span>
+                                            {% elif lead.priority == 'URGENT' %}
+                                                <span class="badge badge-dark">Urgent</span>
+                                            {% else %}
+                                                <span class="badge badge-secondary">{{lead.priority}}</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Expected Value:</strong></td>
+                                        <td>${{lead.expected_value|default:"0"}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Actual Value:</strong></td>
+                                        <td>${{lead.actual_value|default:"0"}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Conversion Score:</strong></td>
+                                        <td>{{lead.conversion_score|default:"0"}}%</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <h5><i class="fas fa-users"></i> Assignment & Source</h5>
+                                <table class="table table-borderless">
+                                    <tr>
+                                        <td><strong>Assigned Counsellor:</strong></td>
+                                        <td>
+                                            {% if lead.assigned_counsellor %}
+                                                {{lead.assigned_counsellor.admin.first_name}} {{lead.assigned_counsellor.admin.last_name}}
+                                            {% else %}
+                                                <span class="text-muted">Not assigned</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Lead Source:</strong></td>
+                                        <td>{{lead.source.name}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Created:</strong></td>
+                                        <td>{{lead.created_at|date:"M d, Y H:i"}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Last Updated:</strong></td>
+                                        <td>{{lead.updated_at|date:"M d, Y H:i"}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Last Contact:</strong></td>
+                                        <td>
+                                            {% if lead.last_contact_date %}
+                                                {{lead.last_contact_date|date:"M d, Y H:i"}}
+                                            {% else %}
+                                                <span class="text-muted">Never</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- AI Routing Information -->
+                        {% if lead.routed_to %}
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                <h5><i class="fas fa-route"></i> AI Routing Information</h5>
+                                <div class="alert alert-info">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <strong>Routed To:</strong> 
+                                            <span class="badge badge-primary">
+                                                {% if lead.routed_to == 'undergraduate_counselor' %}
+                                                    Undergraduate Counselor
+                                                {% elif lead.routed_to == 'graduate_counselor' %}
+                                                    Graduate Counselor
+                                                {% elif lead.routed_to == 'specialized_department' %}
+                                                    Specialized Department
+                                                {% elif lead.routed_to == 'senior_counselor' %}
+                                                    Senior Counselor
+                                                {% else %}
+                                                    {{lead.routed_to|title}}
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <strong>Routing Reason:</strong> {{lead.routing_reason|default:"No reason provided"}}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if lead.notes %}
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                <h5><i class="fas fa-sticky-note"></i> Notes</h5>
+                                <div class="alert alert-info">
+                                    {{lead.notes}}
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Lead Activities Card -->
+                <div class="card card-info">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-history"></i> Lead Activities
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        {% if activities %}
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Type</th>
+                                            <th>Subject</th>
+                                            <th>Outcome</th>
+                                            <th>Counsellor</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for activity in activities %}
+                                        <tr>
+                                            <td>{{activity.scheduled_date|date:"M d, Y H:i"}}</td>
+                                            <td>
+                                                <span class="badge badge-primary">{{activity.get_activity_type_display}}</span>
+                                            </td>
+                                            <td>{{activity.subject}}</td>
+                                            <td>
+                                                {% if activity.outcome %}
+                                                    <span class="badge badge-success">{{activity.outcome}}</span>
+                                                {% else %}
+                                                    <span class="text-muted">Pending</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{activity.counsellor.admin.first_name}} {{activity.counsellor.admin.last_name}}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i> No activities recorded for this lead.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Business Information Card -->
+                {% if business %}
+                <div class="card card-success">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-briefcase"></i> Business Information
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <table class="table table-borderless">
+                                    <tr>
+                                        <td><strong>Business ID:</strong></td>
+                                        <td>{{business.business_id}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Title:</strong></td>
+                                        <td>{{business.title}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Value:</strong></td>
+                                        <td>${{business.value}}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <table class="table table-borderless">
+                                    <tr>
+                                        <td><strong>Status:</strong></td>
+                                        <td>
+                                            {% if business.status == 'ACTIVE' %}
+                                                <span class="badge badge-success">Active</span>
+                                            {% elif business.status == 'COMPLETED' %}
+                                                <span class="badge badge-primary">Completed</span>
+                                            {% elif business.status == 'CANCELLED' %}
+                                                <span class="badge badge-danger">Cancelled</span>
+                                            {% else %}
+                                                <span class="badge badge-secondary">{{business.status}}</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Start Date:</strong></td>
+                                        <td>{{business.start_date|date:"M d, Y"}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>End Date:</strong></td>
+                                        <td>
+                                            {% if business.end_date %}
+                                                {{business.end_date|date:"M d, Y"}}
+                                            {% else %}
+                                                <span class="text-muted">Ongoing</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Manual Routing Modal -->
+<div class="modal fade" id="manualRoutingModal" tabindex="-1" role="dialog" aria-labelledby="manualRoutingModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="manualRoutingModalLabel">
+                    <i class="fas fa-route"></i> Manual Student Routing
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form method="post" action="{% url 'manual_route_student' lead.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="route_to">Route Student To:</label>
+                        <select class="form-control" id="route_to" name="route_to" required>
+                            <option value="">Select routing option...</option>
+                            <option value="undergraduate_counselor">Undergraduate Counselor</option>
+                            <option value="graduate_counselor">Graduate Counselor</option>
+                            <option value="specialized_department">Specialized Department</option>
+                            <option value="senior_counselor">Senior Counselor</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="custom_reason">Custom Reason (Optional):</label>
+                        <textarea class="form-control" id="custom_reason" name="custom_reason" rows="3" 
+                                  placeholder="Enter custom routing reason..."></textarea>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Routing Effects:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li><strong>Undergraduate Counselor:</strong> Status → Qualified, Priority → Medium</li>
+                            <li><strong>Graduate Counselor:</strong> Status → Qualified, Priority → High</li>
+                            <li><strong>Specialized Department:</strong> Status → Proposal Sent, Priority → High</li>
+                            <li><strong>Senior Counselor:</strong> Status → Negotiation, Priority → Urgent</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-route"></i> Route Student
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock content %}

@@ -1,0 +1,58 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Admin Profile</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    {% if admin.admin.profile_pic %}
+                                        <img class="profile-user-img img-fluid img-circle" src="{{admin.admin.profile_pic.url}}" alt="User profile picture">
+                                    {% else %}
+                                        <img class="profile-user-img img-fluid img-circle" src="{% static 'dist/img/user4-128x128.jpg' %}" alt="User profile picture">
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-9">
+                                <div class="form-group">
+                                    <label><strong>Name:</strong></label>
+                                    <p>{{admin.admin.first_name}} {{admin.admin.last_name}}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Email:</strong></label>
+                                    <p>{{admin.admin.email}}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Phone:</strong></label>
+                                    <p>{{admin.admin.phone|default:"Not provided"}}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Gender:</strong></label>
+                                    <p>{{admin.admin.get_gender_display}}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Address:</strong></label>
+                                    <p>{{admin.admin.address|default:"Not provided"}}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <a href="#" class="btn btn-primary">Edit Profile</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

@@ -1,0 +1,228 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>CRM System | {% block page_title %}{% endblock page_title %}</title>
+    <!-- Tell the browser to be responsive to screen width -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Ionicons -->
+    <link rel="stylesheet" href="https://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
+    <!-- Theme style -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+    <!-- overlayScrollbars -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/overlayscrollbars@1.13.1/css/OverlayScrollbars.min.css">
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap4.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.4.1/css/responsive.bootstrap4.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.3.6/css/buttons.bootstrap4.min.css">
+    <!-- Google Font: Source Sans Pro -->
+    <link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700" rel="stylesheet">
+    {% block custom_css %}
+    {% endblock custom_css %}
+</head>
+
+<body class="hold-transition sidebar-mini layout-fixed">
+    <div class="wrapper">
+        <!-- Navbar -->
+        <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+            <!-- Left navbar links -->
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a class="nav-link" data-widget="pushmenu" href="#"><i class="fas fa-bars"></i></a>
+                </li>
+            </ul>
+
+            <!-- Right navbar links -->
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item dropdown">
+                    <a class="nav-link" href="{% if request.user.is_authenticated and request.user.user_type == '1' %}{% url 'admin_view_notifications' %}{% elif request.user.is_authenticated and request.user.user_type == '2' %}{% url 'counsellor_view_notifications' %}{% else %}#{% endif %}">
+                        <i class="fas fa-bell"></i>
+                        {% if notification_count > 0 %}
+                            <span class="badge badge-danger navbar-badge">{{ notification_count }}</span>
+                        {% endif %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'user_logout' %}">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        <!-- /.navbar -->
+
+        <!-- Main Sidebar Container -->
+        <aside class="main-sidebar sidebar-dark-primary elevation-4">
+            <!-- Brand Logo -->
+            <a href="{% if request.user.is_authenticated and request.user.user_type == '1' %}{% url 'admin_home' %}{% elif request.user.is_authenticated and request.user.user_type == '2' %}{% url 'counsellor_home' %}{% else %}{% url 'login_page' %}{% endif %}" class="brand-link">
+                <span class="brand-text font-weight-light">CRM System</span>
+            </a>
+
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Sidebar Menu -->
+                <nav class="mt-2">
+                    <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
+                        {% if request.user.is_authenticated and request.user.user_type == '1' %}
+                            <!-- Admin Menu -->
+                            <li class="nav-item">
+                                <a href="{% url 'admin_home' %}" class="nav-link">
+                                    <i class="nav-icon fas fa-tachometer-alt"></i>
+                                    <p>Dashboard</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'manage_leads' %}" class="nav-link">
+                                    <i class="nav-icon fas fa-users"></i>
+                                    <p>Manage Leads</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'manage_counsellors' %}" class="nav-link">
+                                    <i class="nav-icon fas fa-user-tie"></i>
+                                    <p>Manage Counsellors</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'manage_lead_sources' %}" class="nav-link">
+                                    <i class="nav-icon fas fa-tags"></i>
+                                    <p>Lead Sources</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'counsellor_performance' %}" class="nav-link">
+                                    <i class="nav-icon fas fa-chart-bar"></i>
+                                    <p>Performance</p>
+                                </a>
+                            </li>
+                        {% elif request.user.is_authenticated and request.user.user_type == '2' %}
+                            <!-- Counsellor Menu -->
+                            <li class="nav-item">
+                                <a href="{% url 'counsellor_home' %}" class="nav-link">
+                                    <i class="nav-icon fas fa-tachometer-alt"></i>
+                                    <p>Dashboard</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'my_leads' %}" class="nav-link">
+                                    <i class="nav-icon fas fa-users"></i>
+                                    <p>My Leads</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'my_businesses' %}" class="nav-link">
+                                    <i class="nav-icon fas fa-briefcase"></i>
+                                    <p>My Businesses</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'my_activities' %}" class="nav-link">
+                                    <i class="nav-icon fas fa-history"></i>
+                                    <p>My Activities</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'counsellor_view_profile' %}" class="nav-link">
+                                    <i class="nav-icon fas fa-user"></i>
+                                    <p>My Profile</p>
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                <!-- /.sidebar-menu -->
+            </div>
+            <!-- /.sidebar -->
+        </aside>
+
+        <div class="content-wrapper">
+            <!-- Content Header (Page header) -->
+            <div class="content-header">
+                <div class="container-fluid">
+                    <div class="row mb-2">
+                        <div class="col-sm-6">
+                            <h1 class="m-0 text-dark">{% block content_title %}{% endblock content_title %}</h1>
+                        </div>
+                        <div class="col-sm-6">
+                            <ol class="breadcrumb float-sm-right">
+                                <li class="breadcrumb-item"><a href="#">Home</a></li>
+                                <li class="breadcrumb-item active">{{ page_title }}</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main content -->
+            <section class="content">
+                <div class="container-fluid">
+                    {% if messages %}
+                        {% for message in messages %}
+                            {% if message.tags == 'success' %}
+                                <div class="alert alert-success alert-dismissible">
+                                    <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+                                    {{message}}
+                                </div>
+                            {% elif message.tags == 'error' %}
+                                <div class="alert alert-danger alert-dismissible">
+                                    <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+                                    {{message}}
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info alert-dismissible">
+                                    <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+                                    {{message}}
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </section>
+
+            {% block content %}
+            {% endblock content %}
+        </div>
+
+        <!-- Footer -->
+        <footer class="main-footer">
+            <div class="float-right d-none d-sm-block">
+                <b>Version</b> 1.0.0
+            </div>
+            <strong>Copyright &copy; 2025 <a href="#">CRM System</a>.</strong> All rights reserved.
+        </footer>
+    </div>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- jQuery UI 1.11.4 -->
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+    <!-- Bootstrap 4 -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- ChartJS -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- overlayScrollbars -->
+    <script src="https://cdn.jsdelivr.net/npm/overlayscrollbars@1.13.1/js/jquery.overlayScrollbars.min.js"></script>
+    <!-- AdminLTE App -->
+    <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+    <!-- DataTables -->
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap4.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.4.1/js/dataTables.responsive.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.4.1/js/responsive.bootstrap4.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.bootstrap4.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.print.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.colVis.min.js"></script>
+
+    {% block custom_js %}
+    {% endblock custom_js %}
+</body>
+</html>
