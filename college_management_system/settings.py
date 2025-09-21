@@ -31,8 +31,8 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'f2zx8*lb*em*-*b+!&1lpp&$_9q9kmkar+l3x
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() == 'true'
 
-#ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'crm-portal-u422.onrender.com').split(',')
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost']  # Not recommended but useful in dev mode
+ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'crm-portal-u422.onrender.com').split(',')
+#ALLOWED_HOSTS = ['127.0.0.1', 'localhost']  # Not recommended but useful in dev mode
 
 
 # Application definition
