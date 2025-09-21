@@ -192,3 +192,122 @@ def run_migrations(request):
         return HttpResponse(f"<h1>Migrations completed</h1><pre>{result}</pre>")
     except Exception as e:
         return HttpResponse(f"<h1>Migration failed</h1><pre>{str(e)}</pre>")
+
+
+def custom_password_reset_confirm(request, uidb64=None, token=None):
+    """
+    Custom password reset confirm view that ensures database is only updated
+    after successful validation and password confirmation.
+    
+    Security features:
+    - Database transaction for atomicity
+    - Password strength validation
+    - Security logging
+    - Rate limiting protection
+    - Token validation
+    """
+    from django.contrib.auth.tokens import default_token_generator
+    from django.contrib.auth import get_user_model
+    from django.utils.http import urlsafe_base64_decode
+    from django.contrib.auth.forms import SetPasswordForm
+    from django.contrib.auth.hashers import make_password
+    from django.db import transaction
+    from django.core.cache import cache
+    import logging
+    
+    User = get_user_model()
+    logger = logging.getLogger(__name__)
+    
+    # Rate limiting: Check if too many attempts from this IP
+    client_ip = request.META.get('REMOTE_ADDR', 'unknown')
+    cache_key = f"password_reset_attempts_{client_ip}"
+    attempts = cache.get(cache_key, 0)
+    
+    if attempts >= 5:  # Max 5 attempts per IP per hour
+        messages.error(request, "Too many password reset attempts. Please try again later.")
+        logger.warning(f"Rate limit exceeded for password reset from IP: {client_ip}")
+        return render(request, 'registration/password_reset_confirm.html', {
+            'form': None,
+            'validlink': False
+        })
+    
+    # Validate the token and user
+    try:
+        uid = urlsafe_base64_decode(uidb64).decode()
+        user = User.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        user = None
+        logger.warning(f"Invalid password reset token attempt from IP: {client_ip}")
+    
+    # Check if the token is valid
+    if user is not None and default_token_generator.check_token(user, token):
+        validlink = True
+    else:
+        validlink = False
+        if user is not None:
+            logger.warning(f"Invalid password reset token for user {user.email} from IP: {client_ip}")
+    
+    if request.method == 'POST' and validlink:
+        # Increment rate limiting counter
+        cache.set(cache_key, attempts + 1, 3600)  # 1 hour
+        
+        form = SetPasswordForm(user, request.POST)
+        if form.is_valid():
+            # Use database transaction to ensure atomicity
+            with transaction.atomic():
+                try:
+                    # Get the new password from the form
+                    new_password = form.cleaned_data['new_password1']
+                    
+                    # Enhanced password strength validation
+                    if len(new_password) < 8:
+                        messages.error(request, "Password must be at least 8 characters long.")
+                        return render(request, 'registration/password_reset_confirm.html', {
+                            'form': form,
+                            'validlink': validlink
+                        })
+                    
+                    # Check for common weak passwords
+                    weak_passwords = ['password', '12345678', 'qwerty123', 'admin123', 'password123']
+                    if new_password.lower() in weak_passwords:
+                        messages.error(request, "This password is too common. Please choose a stronger password.")
+                        return render(request, 'registration/password_reset_confirm.html', {
+                            'form': form,
+                            'validlink': validlink
+                        })
+                    
+                    # Update the password in the database
+                    user.set_password(new_password)
+                    user.save()
+                    
+                    # Clear rate limiting on successful reset
+                    cache.delete(cache_key)
+                    
+                    # Log the password reset for security audit
+                    logger.info(f"Password reset successful for user: {user.email} from IP: {client_ip}")
+                    
+                    messages.success(request, "Your password has been reset successfully!")
+                    return redirect('password_reset_complete')
+                    
+                except Exception as e:
+                    # Rollback transaction on error
+                    transaction.rollback()
+                    messages.error(request, "An error occurred while resetting your password. Please try again.")
+                    logger.error(f"Password reset failed for user {user.email} from IP {client_ip}: {str(e)}")
+                    return render(request, 'registration/password_reset_confirm.html', {
+                        'form': form,
+                        'validlink': validlink
+                    })
+        else:
+            # Form validation failed
+            logger.warning(f"Password reset form validation failed for user {user.email} from IP: {client_ip}")
+    else:
+        if validlink:
+            form = SetPasswordForm(user)
+        else:
+            form = None
+    
+    return render(request, 'registration/password_reset_confirm.html', {
+        'form': form,
+        'validlink': validlink
+    })

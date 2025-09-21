@@ -200,6 +200,11 @@ except Exception as e:
     pass
 
 
+# Session Configuration
+SESSION_COOKIE_AGE = 1800  # 30 minutes in seconds
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_SAVE_EVERY_REQUEST = True
+
 # AI/LLM Settings
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 

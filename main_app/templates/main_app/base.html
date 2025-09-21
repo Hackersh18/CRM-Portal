@@ -224,5 +224,208 @@
 
     {% block custom_js %}
     {% endblock custom_js %}
+
+    <!-- Session Timeout Script -->
+    <script>
+        (function() {
+            let idleTimer;
+            let warningTimer;
+            let backgroundTimer;
+            let isWarningShown = false;
+            let isTabVisible = true;
+            let lastActivityTime = Date.now();
+            
+            const IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes in milliseconds
+            const WARNING_TIME = 28 * 60 * 1000; // 28 minutes (2 minutes before logout)
+            const BACKGROUND_TIMEOUT = 10 * 60 * 1000; // 10 minutes for background tabs
+            
+            // Events that indicate user activity
+            const activityEvents = [
+                'mousedown', 'mousemove', 'keypress', 'scroll', 
+                'touchstart', 'click', 'keydown'
+            ];
+            
+            function resetIdleTimer() {
+                clearTimeout(idleTimer);
+                clearTimeout(warningTimer);
+                clearTimeout(backgroundTimer);
+                isWarningShown = false;
+                lastActivityTime = Date.now();
+                
+                // Only set timers if tab is visible
+                if (isTabVisible) {
+                    // Set warning timer (4.5 minutes)
+                    warningTimer = setTimeout(showWarning, WARNING_TIME);
+                    
+                    // Set logout timer (5 minutes)
+                    idleTimer = setTimeout(logout, IDLE_TIMEOUT);
+                }
+            }
+            
+            function startBackgroundTimer() {
+                clearTimeout(backgroundTimer);
+                backgroundTimer = setTimeout(function() {
+                    // Check if tab has been in background for 10 minutes
+                    if (!isTabVisible) {
+                        logout();
+                    }
+                }, BACKGROUND_TIMEOUT);
+            }
+            
+            function showWarning() {
+                if (isWarningShown) return;
+                isWarningShown = true;
+                
+                // Create warning modal
+                const warningModal = `
+                    <div class="modal fade" id="idleWarningModal" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
+                        <div class="modal-dialog modal-dialog-centered" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header bg-warning">
+                                    <h5 class="modal-title">
+                                        <i class="fas fa-exclamation-triangle"></i> Session Timeout Warning
+                                    </h5>
+                                </div>
+                                <div class="modal-body text-center">
+                                    <p class="mb-3">Your session will expire in <strong id="countdown">120</strong> seconds due to inactivity.</p>
+                                    <p class="text-muted">Click "Stay Logged In" to continue your session.</p>
+                                    <small class="text-info">
+                                        <i class="fas fa-info-circle"></i> 
+                                        Sessions also expire after 10 minutes in background tabs.
+                                    </small>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-success" id="stayLoggedIn">
+                                        <i class="fas fa-check"></i> Stay Logged In
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" id="logoutNow">
+                                        <i class="fas fa-sign-out-alt"></i> Logout Now
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Add modal to body
+                $('body').append(warningModal);
+                $('#idleWarningModal').modal('show');
+                
+                // Start countdown
+                let countdown = 120; // 2 minutes
+                const countdownInterval = setInterval(function() {
+                    countdown--;
+                    $('#countdown').text(countdown);
+                    
+                    if (countdown <= 0) {
+                        clearInterval(countdownInterval);
+                        logout();
+                    }
+                }, 1000);
+                
+                // Handle stay logged in button
+                $('#stayLoggedIn').click(function() {
+                    clearInterval(countdownInterval);
+                    $('#idleWarningModal').modal('hide');
+                    resetIdleTimer();
+                });
+                
+                // Handle logout now button
+                $('#logoutNow').click(function() {
+                    clearInterval(countdownInterval);
+                    logout();
+                });
+                
+                // Clean up modal when hidden
+                $('#idleWarningModal').on('hidden.bs.modal', function() {
+                    $(this).remove();
+                });
+            }
+            
+            function logout() {
+                // Clear all timers
+                clearTimeout(idleTimer);
+                clearTimeout(warningTimer);
+                clearTimeout(backgroundTimer);
+                
+                // Remove warning modal if it exists
+                $('#idleWarningModal').modal('hide');
+                $('#idleWarningModal').remove();
+                
+                // Show logout message
+                const logoutModal = `
+                    <div class="modal fade" id="logoutModal" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
+                        <div class="modal-dialog modal-dialog-centered" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header bg-danger">
+                                    <h5 class="modal-title">
+                                        <i class="fas fa-sign-out-alt"></i> Session Expired
+                                    </h5>
+                                </div>
+                                <div class="modal-body text-center">
+                                    <p>Your session has expired due to inactivity or being in a background tab for too long.</p>
+                                    <p class="text-muted">You will be redirected to the login page.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                $('body').append(logoutModal);
+                $('#logoutModal').modal('show');
+                
+                // Redirect to logout after a short delay
+                setTimeout(function() {
+                    window.location.href = "{% url 'user_logout' %}";
+                }, 2000);
+            }
+            
+            // Initialize idle timer
+            function initIdleTimer() {
+                // Only start timer if user is authenticated
+                {% if request.user.is_authenticated %}
+                    resetIdleTimer();
+                    
+                    // Add event listeners for user activity
+                    activityEvents.forEach(function(event) {
+                        document.addEventListener(event, resetIdleTimer, true);
+                    });
+                {% endif %}
+            }
+            
+            // Start the idle timer when page loads
+            $(document).ready(function() {
+                initIdleTimer();
+            });
+            
+            // Handle tab visibility changes
+            document.addEventListener('visibilitychange', function() {
+                {% if request.user.is_authenticated %}
+                    if (document.hidden) {
+                        // Tab became hidden/minimized
+                        isTabVisible = false;
+                        clearTimeout(idleTimer);
+                        clearTimeout(warningTimer);
+                        startBackgroundTimer();
+                    } else {
+                        // Tab became visible
+                        isTabVisible = true;
+                        clearTimeout(backgroundTimer);
+                        
+                        // Check if user was away for too long
+                        const timeAway = Date.now() - lastActivityTime;
+                        if (timeAway >= BACKGROUND_TIMEOUT) {
+                            // User was away for 10+ minutes, logout immediately
+                            logout();
+                        } else {
+                            // Reset normal idle timer
+                            resetIdleTimer();
+                        }
+                    }
+                {% endif %}
+            });
+            
+        })();
+    </script>
 </body>
 </html>
