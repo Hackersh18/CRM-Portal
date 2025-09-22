@@ -46,17 +46,38 @@
                                         {% endif %}
                                     </div>
                                     <div class="form-group">
-                                        <label>School Name</label>
+                                        <label>Course Interested In</label>
+                                        {{form.course_interested}}
+                                        {% if form.course_interested.errors %}
+                                            <span class="text-danger">{{form.course_interested.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>12th School Name</label>
                                         {{form.school_name}}
                                         {% if form.school_name.errors %}
                                             <span class="text-danger">{{form.school_name.errors}}</span>
                                         {% endif %}
                                     </div>
                                     <div class="form-group">
-                                        <label>Position</label>
+                                        <label>12th Percentage</label>
                                         {{form.position}}
                                         {% if form.position.errors %}
                                             <span class="text-danger">{{form.position.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Notes</label>
+                                        {{form.notes}}
+                                        {% if form.notes.errors %}
+                                            <span class="text-danger">{{form.notes.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Next Follow-up</label>
+                                        {{form.next_follow_up}}
+                                        {% if form.next_follow_up.errors %}
+                                            <span class="text-danger">{{form.next_follow_up.errors}}</span>
                                         {% endif %}
                                     </div>
                                 </div>
@@ -71,6 +92,10 @@
                                     
                                     <!-- Hidden industry field for backward compatibility -->
                                     {{form.industry}}
+                                    
+                                    <!-- Hidden fields for website and linkedin to match add lead template -->
+                                    {{form.website}}
+                                    {{form.linkedin}}
                                     
                                     <!-- Conditional graduation details fields -->
                                     <div id="graduation-details" style="display: none;">
@@ -95,13 +120,6 @@
                                                 <span class="text-danger">{{form.graduation_college.errors}}</span>
                                             {% endif %}
                                         </div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Course Interested In</label>
-                                        {{form.course_interested}}
-                                        {% if form.course_interested.errors %}
-                                            <span class="text-danger">{{form.course_interested.errors}}</span>
-                                        {% endif %}
                                     </div>
                                     <div class="form-group">
                                         <label>Lead Source</label>
@@ -188,31 +206,6 @@
                                         {{form.postal_code}}
                                         {% if form.postal_code.errors %}
                                             <span class="text-danger">{{form.postal_code.errors}}</span>
-                                        {% endif %}
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Website</label>
-                                        {{form.website}}
-                                        {% if form.website.errors %}
-                                            <span class="text-danger">{{form.website.errors}}</span>
-                                        {% endif %}
-                                    </div>
-                                    <div class="form-group">
-                                        <label>LinkedIn</label>
-                                        {{form.linkedin}}
-                                        {% if form.linkedin.errors %}
-                                            <span class="text-danger">{{form.linkedin.errors}}</span>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label>Next Follow-up</label>
-                                        {{form.next_follow_up}}
-                                        {% if form.next_follow_up.errors %}
-                                            <span class="text-danger">{{form.next_follow_up.errors}}</span>
                                         {% endif %}
                                     </div>
                                 </div>
