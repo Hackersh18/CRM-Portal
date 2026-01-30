@@ -10,7 +10,6 @@ from django.views.decorators.http import require_POST
 from .EmailBackend import EmailBackend
 from .models import Lead, NotificationCounsellor, NotificationAdmin, Counsellor
 from django.core.management import call_command
-from django.http import HttpResponse
 from io import StringIO
 
 # Create your views here.

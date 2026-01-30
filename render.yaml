@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: crm-portal
+    env: python
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn college_management_system.wsgi:application"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.1
+      - key: DJANGO_SETTINGS_MODULE
+        value: college_management_system.settings
+      - key: DJANGO_DEBUG
+        value: "False"
+      - fromGroup: crm-secrets
+
+  - type: database
+    name: crm-db
+    databaseName: crm_db
+    user: crm_user
+
+  - type: worker
+    name: crm-worker
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "celery -A college_management_system worker -l info"
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: college_management_system.settings
+      - fromGroup: crm-secrets
+
+  - type: redis
+    name: crm-redis
+    ipAllowList: [] # Only allow internal traffic

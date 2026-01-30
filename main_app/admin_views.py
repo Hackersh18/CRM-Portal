@@ -13,10 +13,13 @@ from django.views.generic import UpdateView
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Sum, Avg, Q, Case, When, Value, DecimalField
+from django.db.models.functions import TruncMonth
 from django.utils import timezone
+import logging
 
 from .forms import *
 from .models import *
+from .utils import paginate_queryset
 
 
 def admin_home(request):
@@ -166,7 +169,8 @@ def add_counsellor(request):
 
 def manage_counsellors(request):
     """Manage all counsellors"""
-    counsellors = Counsellor.objects.select_related('admin').all()
+    counsellors_list = Counsellor.objects.select_related('admin').all().order_by('-joining_date')
+    counsellors = paginate_queryset(request, counsellors_list, 10)
     context = {
         'counsellors': counsellors,
         'page_title': 'Manage Counsellors'
@@ -222,10 +226,24 @@ def delete_counsellor(request, counsellor_id):
 
 def manage_leads(request):
     """Manage all leads"""
-    leads = Lead.objects.select_related('source', 'assigned_counsellor__admin').all()
+    leads_list = Lead.objects.select_related('source', 'assigned_counsellor__admin').all().order_by('-created_at')
+    
+    # Simple search optimization
+    search_query = request.GET.get('search')
+    if search_query:
+        leads_list = leads_list.filter(
+            Q(first_name__icontains=search_query) |
+            Q(last_name__icontains=search_query) |
+            Q(email__icontains=search_query) |
+            Q(phone__icontains=search_query) |
+            Q(lead_id__icontains=search_query)
+        )
+        
+    leads = paginate_queryset(request, leads_list, 20)
     context = {
         'leads': leads,
-        'page_title': 'Manage Leads'
+        'page_title': 'Manage Leads',
+        'search_query': search_query
     }
     return render(request, 'admin_template/manage_leads.html', context)
 
@@ -353,8 +371,9 @@ def import_leads(request):
                     except Exception as e:
                         error_count += 1
                         # Log the specific error for debugging
-                        print(f"Error importing row {index + 1}: {str(e)}")
-                        print(f"Row data: {dict(row)}")
+                        logger = logging.getLogger(__name__)
+                        logger.error(f"Error importing row {index + 1}: {str(e)}")
+                        logger.debug(f"Row data: {dict(row)}")
                         continue
                 
                 # Auto-assign leads if requested
@@ -745,7 +764,8 @@ def delete_lead_source(request, source_id):
 
 def manage_businesses(request):
     """Manage all businesses"""
-    businesses = Business.objects.select_related('lead', 'counsellor__admin').all()
+    businesses_list = Business.objects.select_related('lead', 'counsellor__admin').all().order_by('-created_at')
+    businesses = paginate_queryset(request, businesses_list, 15)
     context = {
         'businesses': businesses,
         'page_title': 'Manage Businesses'
@@ -956,234 +976,6 @@ def admin_run_ai_workflow(request, lead_id):
     return redirect('admin_view_lead', lead_id=lead_id)
 
 
-@login_required(login_url='login')
-def ai_assign_counsellor(request, lead_id):
-    """AI-powered counsellor assignment for a lead"""
-    try:
-        lead = get_object_or_404(Lead, id=lead_id)
-        
-        # Get all active counsellors
-        active_counsellors = Counsellor.objects.filter(is_active=True)
-        
-        if not active_counsellors.exists():
-            messages.error(request, 'No active counsellors available for assignment.')
-            return redirect('admin_view_lead', lead_id=lead_id)
-        
-        # AI Assignment Logic
-        best_counsellor = None
-        assignment_reason = ""
-        
-        # Factor 1: Workload Balance (leads assigned but not converted)
-        counsellor_workloads = {}
-        for counsellor in active_counsellors:
-            active_leads = Lead.objects.filter(
-                assigned_counsellor=counsellor,
-                status__in=['NEW', 'CONTACTED', 'QUALIFIED']
-            ).count()
-            counsellor_workloads[counsellor] = active_leads
-        
-        # Factor 2: Performance Score (conversion rate)
-        counsellor_performance = {}
-        for counsellor in active_counsellors:
-            total_leads = Lead.objects.filter(assigned_counsellor=counsellor).count()
-            converted_leads = Lead.objects.filter(
-                assigned_counsellor=counsellor,
-                status='CONVERTED'
-            ).count()
-            conversion_rate = (converted_leads / total_leads * 100) if total_leads > 0 else 0
-            counsellor_performance[counsellor] = conversion_rate
-        
-        # Factor 3: Academic Specialization Match (based on graduation status, course interested, and academic background)
-        specialization_scores = {}
-        for counsellor in active_counsellors:
-            score = 0
-            
-            # Check if counsellor has experience with similar graduation status
-            similar_leads = Lead.objects.filter(
-                assigned_counsellor=counsellor,
-                graduation_status=lead.graduation_status
-            ).count()
-            score += similar_leads * 2
-            
-            # Check if counsellor has experience with similar courses (academic specialization)
-            if lead.course_interested:
-                course_leads = Lead.objects.filter(
-                    assigned_counsellor=counsellor,
-                    course_interested__icontains=lead.course_interested.split()[0]  # First word of course
-                ).count()
-                score += course_leads * 3
-                
-                # Bonus for specific academic fields
-                course_lower = lead.course_interested.lower()
-                if any(field in course_lower for field in ['engineering', 'medicine', 'law', 'mba', 'masters']):
-                    score += 2  # Specialized fields get bonus
-            
-            # Check if counsellor has experience with similar school types
-            if lead.school_name:
-                school_leads = Lead.objects.filter(
-                    assigned_counsellor=counsellor,
-                    school_name__icontains=lead.school_name.split()[0]  # First word of school
-                ).count()
-                score += school_leads * 1
-                
-            # Check if counsellor has experience with similar graduation courses
-            if lead.graduation_course and lead.graduation_course != 'Not Applicable':
-                course_leads = Lead.objects.filter(
-                    assigned_counsellor=counsellor,
-                    graduation_course__icontains=lead.graduation_course.split()[0]
-                ).count()
-                score += course_leads * 2
-            
-            specialization_scores[counsellor] = score
-        
-        # Calculate final scores for each counsellor
-        final_scores = {}
-        for counsellor in active_counsellors:
-            workload_score = max(0, 10 - counsellor_workloads[counsellor])  # Lower workload = higher score
-            performance_score = counsellor_performance[counsellor] / 10  # Normalize to 0-10
-            specialization_score = min(specialization_scores[counsellor], 10)  # Cap at 10
-            
-            # Weighted combination: 40% workload, 30% performance, 30% specialization
-            final_score = (workload_score * 0.4) + (performance_score * 0.3) + (specialization_score * 0.3)
-            final_scores[counsellor] = final_score
-        
-        # Select the best counsellor
-        best_counsellor = max(final_scores.keys(), key=lambda x: final_scores[x])
-        
-        # Generate assignment reason
-        workload = counsellor_workloads[best_counsellor]
-        performance = counsellor_performance[best_counsellor]
-        specialization = specialization_scores[best_counsellor]
-        
-        assignment_reason = (
-            f"AI Academic Assignment: Selected {best_counsellor.admin.first_name} {best_counsellor.admin.last_name} "
-            f"based on workload ({workload} active students), performance ({performance:.1f}% enrollment rate), "
-            f"and academic specialization match (score: {specialization}). Final AI score: {final_scores[best_counsellor]:.2f}"
-        )
-        
-        # Assign the lead
-        lead.assigned_counsellor = best_counsellor
-        lead.save()
-        
-        # Create a notification for the assigned counsellor
-        NotificationCounsellor.objects.create(
-            counsellor=best_counsellor,
-            message=f"New student assigned: {lead.first_name} {lead.last_name} - Interested in {lead.course_interested}"
-        )
-        
-        messages.success(request, f'Student successfully assigned to {best_counsellor.admin.first_name} {best_counsellor.admin.last_name} using AI academic analysis.')
-        
-        # Log the assignment reason
-        if not lead.notes:
-            lead.notes = assignment_reason
-        else:
-            lead.notes += f"\n\n{assignment_reason}"
-        lead.save()
-        
-    except Exception as e:
-        messages.error(request, f'Error in AI assignment: {str(e)}')
-    
-    return redirect('admin_view_lead', lead_id=lead_id)
-
-
-@login_required(login_url='login')
-def bulk_ai_assign_counsellors(request):
-    """Bulk AI assignment for multiple unassigned leads"""
-    if request.method == 'POST':
-        try:
-            # Get all unassigned leads
-            unassigned_leads = Lead.objects.filter(assigned_counsellor__isnull=True)
-            
-            if not unassigned_leads.exists():
-                messages.info(request, 'No unassigned leads found.')
-                return redirect('manage_leads')
-            
-            # Get all active counsellors
-            active_counsellors = Counsellor.objects.filter(is_active=True)
-            
-            if not active_counsellors.exists():
-                messages.error(request, 'No active counsellors available for assignment.')
-                return redirect('manage_leads')
-            
-            assigned_count = 0
-            
-            for lead in unassigned_leads:
-                # Use the same AI logic as single assignment
-                counsellor_workloads = {}
-                for counsellor in active_counsellors:
-                    active_leads = Lead.objects.filter(
-                        assigned_counsellor=counsellor,
-                        status__in=['NEW', 'CONTACTED', 'QUALIFIED']
-                    ).count()
-                    counsellor_workloads[counsellor] = active_leads
-                
-                counsellor_performance = {}
-                for counsellor in active_counsellors:
-                    total_leads = Lead.objects.filter(assigned_counsellor=counsellor).count()
-                    converted_leads = Lead.objects.filter(
-                        assigned_counsellor=counsellor,
-                        status='CONVERTED'
-                    ).count()
-                    conversion_rate = (converted_leads / total_leads * 100) if total_leads > 0 else 0
-                    counsellor_performance[counsellor] = conversion_rate
-                
-                specialization_scores = {}
-                for counsellor in active_counsellors:
-                    score = 0
-                    
-                    similar_leads = Lead.objects.filter(
-                        assigned_counsellor=counsellor,
-                        graduation_status=lead.graduation_status
-                    ).count()
-                    score += similar_leads * 2
-                    
-                    if lead.course_interested:
-                        course_leads = Lead.objects.filter(
-                            assigned_counsellor=counsellor,
-                            course_interested__icontains=lead.course_interested.split()[0]
-                        ).count()
-                        score += course_leads * 3
-                    
-                    if lead.school_name:
-                        school_leads = Lead.objects.filter(
-                            assigned_counsellor=counsellor,
-                            school_name__icontains=lead.school_name.split()[0]
-                        ).count()
-                        score += school_leads * 1
-                    
-                    specialization_scores[counsellor] = score
-                
-                # Calculate final scores
-                final_scores = {}
-                for counsellor in active_counsellors:
-                    workload_score = max(0, 10 - counsellor_workloads[counsellor])
-                    performance_score = counsellor_performance[counsellor] / 10
-                    specialization_score = min(specialization_scores[counsellor], 10)
-                    
-                    final_score = (workload_score * 0.4) + (performance_score * 0.3) + (specialization_score * 0.3)
-                    final_scores[counsellor] = final_score
-                
-                # Select best counsellor
-                best_counsellor = max(final_scores.keys(), key=lambda x: final_scores[x])
-                
-                # Assign the lead
-                lead.assigned_counsellor = best_counsellor
-                lead.save()
-                
-                # Create notification
-                NotificationCounsellor.objects.create(
-                    counsellor=best_counsellor,
-                    message=f"New lead assigned: {lead.first_name} {lead.last_name} - {lead.course_interested}"
-                )
-                
-                assigned_count += 1
-            
-            messages.success(request, f'Successfully assigned {assigned_count} leads using AI analysis.')
-            
-        except Exception as e:
-            messages.error(request, f'Error in bulk AI assignment: {str(e)}')
-    
-    return redirect('manage_leads')
 
 
 @login_required(login_url='login')

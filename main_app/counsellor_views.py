@@ -11,9 +11,11 @@ from django.utils import timezone
 
 from .forms import *
 from .models import *
+from .utils import paginate_queryset
 import os
 import requests
 import re
+import logging
 
 
 def counsellor_home(request):
@@ -85,16 +87,18 @@ def counsellor_home(request):
 def my_leads(request):
     """View assigned leads"""
     counsellor = get_object_or_404(Counsellor, admin=request.user)
-    leads = Lead.objects.filter(assigned_counsellor=counsellor).select_related('source')
+    leads_list = Lead.objects.filter(assigned_counsellor=counsellor).select_related('source').order_by('-created_at')
     
     # Filter by status if provided
     status_filter = request.GET.get('status')
     if status_filter:
-        leads = leads.filter(status=status_filter)
+        leads_list = leads_list.filter(status=status_filter)
     
+    leads = paginate_queryset(request, leads_list, 20)
     context = {
         'leads': leads,
-        'page_title': 'My Leads'
+        'page_title': 'My Leads',
+        'status_filter': status_filter
     }
     return render(request, 'counsellor_template/my_leads.html', context)
 
@@ -202,16 +206,18 @@ def create_business(request, lead_id):
 def my_businesses(request):
     """View my businesses"""
     counsellor = get_object_or_404(Counsellor, admin=request.user)
-    businesses = Business.objects.filter(counsellor=counsellor).select_related('lead')
+    businesses_list = Business.objects.filter(counsellor=counsellor).select_related('lead').order_by('-created_at')
     
     # Filter by status if provided
     status_filter = request.GET.get('status')
     if status_filter:
-        businesses = businesses.filter(status=status_filter)
+        businesses_list = businesses_list.filter(status=status_filter)
     
+    businesses = paginate_queryset(request, businesses_list, 15)
     context = {
         'businesses': businesses,
-        'page_title': 'My Businesses'
+        'page_title': 'My Businesses',
+        'status_filter': status_filter
     }
     return render(request, 'counsellor_template/my_businesses.html', context)
 
@@ -278,16 +284,18 @@ def request_lead_transfer(request, lead_id):
 def my_activities(request):
     """View my activities"""
     counsellor = get_object_or_404(Counsellor, admin=request.user)
-    activities = LeadActivity.objects.filter(counsellor=counsellor).select_related('lead').order_by('-completed_date')
+    activities_list = LeadActivity.objects.filter(counsellor=counsellor).select_related('lead').order_by('-completed_date')
     
     # Filter by activity type if provided
     activity_type = request.GET.get('activity_type')
     if activity_type:
-        activities = activities.filter(activity_type=activity_type)
+        activities_list = activities_list.filter(activity_type=activity_type)
     
+    activities = paginate_queryset(request, activities_list, 20)
     context = {
         'activities': activities,
-        'page_title': 'My Activities'
+        'page_title': 'My Activities',
+        'activity_type': activity_type
     }
     return render(request, 'counsellor_template/my_activities.html', context)
 
@@ -801,7 +809,8 @@ def execute_academic_routing(lead, routed_to, routing_reason):
         return True
         
     except Exception as e:
-        print(f"Error in execute_academic_routing: {e}")
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in execute_academic_routing: {e}")
         return False
 
 

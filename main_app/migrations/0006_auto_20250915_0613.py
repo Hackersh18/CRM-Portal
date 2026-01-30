@@ -9,15 +9,6 @@ class Migration(migrations.Migration):
         ('main_app', '0005_lead_course_interested'),
     ]
 
-    operations = [
-        migrations.AddField(
-            model_name='lead',
-            name='graduation_status',
-            field=models.CharField(choices=[('YES', 'Yes'), ('NO', 'No')], default='NO', max_length=3, verbose_name='Graduation Status'),
-        ),
-        migrations.AddField(
-            model_name='lead',
-            name='course_interested',
-            field=models.CharField(blank=True, max_length=200, verbose_name='Course Interested In'),
-        ),
-    ]
+    # These fields are already added in previous migrations (0004 and 0005).
+    # Keep this migration as a no-op to avoid duplicate column errors.
+    operations = []

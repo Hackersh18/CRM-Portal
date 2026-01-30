@@ -30,8 +30,21 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'f2zx8*lb*em*-*b+!&1lpp&$_9q9kmkar+l3x
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() == 'true'
-ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'crm-portal-u422.onrender.com').split(',')
-#ALLOWED_HOSTS = ['127.0.0.1', 'localhost']  # Not recommended but useful in dev mode
+
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '127.0.0.1,localhost,crm-portal-u422.onrender.com').split(',')
+
+# Security Headers for Production
+if not DEBUG:
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    X_FRAME_OPTIONS = 'DENY'
 
 
 # Application definition
@@ -88,40 +101,14 @@ WSGI_APPLICATION = 'college_management_system.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.1/ref/settings/#databases
 
-#DATABASES = {
-    #'default': {
-        #'ENGINE': 'django.db.backends.sqlite3',
-        #'NAME': BASE_DIR / 'db.sqlite3',
-    #}
-    # 'default': {
-    #     'ENGINE': 'django.db.backends.mysql',
-    #     'NAME': 'django',
-    #     'USER': os.environ.get('DB_USER'),
-    #     'PASSWORD': os.environ.get('DB_PASS'),
-    #     'HOST': '127.0.0.1',
-    #     'PORT': '3307'
-    # 
-#}
+
+# Database configuration
 DATABASES = {
-    "default": dj_database_url.config(
-        default="sqlite:///db.sqlite3"
+    'default': dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=600,
     )
 }
-
-# Supabase Configuration (uncomment and update with your credentials)
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'postgres',
-#         'USER': 'postgres',
-#         'PASSWORD': 'YOUR_SUPABASE_PASSWORD',
-#         'HOST': 'YOUR_PROJECT_REF.supabase.co',
-#         'PORT': '5432',
-#         'OPTIONS': {
-#             'sslmode': 'require',
-#         },
-#     }
-# }
 
 
 # Password validation
@@ -185,18 +172,10 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'main_app/static'),
 ]
 
-# Use Django's default static files storage
-# STATICFILES_STORAGE = 'whitenoise.storage.StaticFilesStorage'
+# Static files storage for Whitenoise
+if not DEBUG:
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Update database configuration for production
-try:
-    prod_db = dj_database_url.config(conn_max_age=500)
-    if prod_db:
-        DATABASES['default'].update(prod_db)
-except Exception as e:
-    print(f"Database configuration error: {e}")
-    # Fall back to SQLite if production database fails
-    pass
 
 
 # Session Configuration
@@ -206,6 +185,34 @@ SESSION_SAVE_EVERY_REQUEST = True
 
 # AI/LLM Settings
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+
+# Caching
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}
+
+# If Redis is available, use it for caching and celery
+REDIS_URL = os.environ.get('REDIS_URL')
+if REDIS_URL:
+    CACHES['default'] = {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': REDIS_URL,
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    }
+    
+# Celery Configuration
+CELERY_BROKER_URL = REDIS_URL if REDIS_URL else "redis://localhost:6379/0"
+CELERY_RESULT_BACKEND = REDIS_URL if REDIS_URL else "redis://localhost:6379/0"
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+
 
 # Logging configuration
 LOGGING = {
@@ -230,5 +237,4 @@ LOGGING = {
 }
 
 
-#pip install -r requirements.txt && python manage.py migrate && echo "from django.contrib.auth import get_user_model; User = get_user_model(); User.objects.filter(email='admin@example.com').exists() or User.objects.create_superuser('admin@example.com', 'admin123')" | python manage.py shell
 

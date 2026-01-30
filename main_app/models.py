@@ -6,6 +6,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from datetime import datetime, timedelta
 import uuid
+import logging
 
 
 class CustomUserManager(UserManager):
@@ -36,7 +37,7 @@ class CustomUser(AbstractUser):
     
     username = None  # Removed username, using email instead
     email = models.EmailField(unique=True)
-    user_type = models.CharField(default=1, choices=USER_TYPE, max_length=1)
+    user_type = models.CharField(default=1, choices=USER_TYPE, max_length=1, db_index=True)
     gender = models.CharField(max_length=1, choices=GENDER)
     profile_pic = models.ImageField(upload_to='profile_pics/', null=True, blank=True)
     address = models.TextField()
@@ -125,8 +126,8 @@ class Lead(models.Model):
     # Keep industry field for backward compatibility but make it hidden
     industry = models.CharField(max_length=100, blank=True, verbose_name="Industry (Legacy)")
     source = models.ForeignKey(LeadSource, on_delete=models.PROTECT)
-    status = models.CharField(max_length=20, choices=LEAD_STATUS, default='NEW')
-    priority = models.CharField(max_length=10, choices=PRIORITY, default='MEDIUM')
+    status = models.CharField(max_length=20, choices=LEAD_STATUS, default='NEW', db_index=True)
+    priority = models.CharField(max_length=10, choices=PRIORITY, default='MEDIUM', db_index=True)
     assigned_counsellor = models.ForeignKey(Counsellor, on_delete=models.SET_NULL, null=True, blank=True)
     previous_counsellor = models.ForeignKey(Counsellor, on_delete=models.SET_NULL, null=True, blank=True, related_name='previous_leads')
     expected_value = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
@@ -139,10 +140,10 @@ class Lead(models.Model):
     postal_code = models.CharField(max_length=30, blank=True)
     website = models.URLField(blank=True)
     linkedin = models.URLField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
-    last_contact_date = models.DateTimeField(null=True, blank=True)
-    next_follow_up = models.DateTimeField(null=True, blank=True)
+    last_contact_date = models.DateTimeField(null=True, blank=True, db_index=True)
+    next_follow_up = models.DateTimeField(null=True, blank=True, db_index=True)
     # AI-evaluated probability of conversion (0-100)
     conversion_score = models.IntegerField(null=True, blank=True)
     # AI enrichment and routing
@@ -181,15 +182,15 @@ class LeadActivity(models.Model):
 
     lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name='activities')
     counsellor = models.ForeignKey(Counsellor, on_delete=models.CASCADE)
-    activity_type = models.CharField(max_length=20, choices=ACTIVITY_TYPE)
+    activity_type = models.CharField(max_length=20, choices=ACTIVITY_TYPE, db_index=True)
     subject = models.CharField(max_length=200)
     description = models.TextField()
     outcome = models.CharField(max_length=200, blank=True)
     next_action = models.CharField(max_length=200, blank=True)
-    scheduled_date = models.DateTimeField(null=True, blank=True)
-    completed_date = models.DateTimeField(auto_now_add=True)
+    scheduled_date = models.DateTimeField(null=True, blank=True, db_index=True)
+    completed_date = models.DateTimeField(auto_now_add=True, db_index=True)
     duration = models.IntegerField(default=0)  # in minutes
-    is_completed = models.BooleanField(default=True)
+    is_completed = models.BooleanField(default=True, db_index=True)
 
     def __str__(self):
         return f"{self.lead.first_name} - {self.activity_type} - {self.subject}"
@@ -209,12 +210,12 @@ class Business(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField()
     value = models.DecimalField(max_digits=12, decimal_places=2)
-    status = models.CharField(max_length=20, choices=BUSINESS_STATUS, default='PENDING')
-    start_date = models.DateField()
+    status = models.CharField(max_length=20, choices=BUSINESS_STATUS, default='PENDING', db_index=True)
+    start_date = models.DateField(db_index=True)
     end_date = models.DateField(null=True, blank=True)
     payment_terms = models.TextField(blank=True)
     notes = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -229,8 +230,8 @@ class Business(models.Model):
 class NotificationCounsellor(models.Model):
     counsellor = models.ForeignKey(Counsellor, on_delete=models.CASCADE)
     message = models.TextField()
-    is_read = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -239,8 +240,8 @@ class NotificationCounsellor(models.Model):
 
 class NotificationAdmin(models.Model):
     message = models.TextField()
-    is_read = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -298,4 +299,5 @@ def save_user_profile(sender, instance, **kwargs):
             if hasattr(instance, 'counsellor'):
                 instance.counsellor.save()
     except Exception as e:
-        print(f"Error saving user profile: {e}")
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error saving user profile: {e}")
