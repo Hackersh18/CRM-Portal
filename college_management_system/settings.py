@@ -174,7 +174,8 @@ STATICFILES_DIRS = [
 
 # Static files storage for Whitenoise
 if not DEBUG:
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+    # Use non-manifest storage to avoid build failures on vendor CSS assets
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
     WHITENOISE_MANIFEST_STRICT = False
 
 
