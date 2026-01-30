@@ -175,6 +175,7 @@ STATICFILES_DIRS = [
 # Static files storage for Whitenoise
 if not DEBUG:
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+    WHITENOISE_MANIFEST_STRICT = False
 
 
 
