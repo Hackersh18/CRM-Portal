@@ -103,7 +103,7 @@ class Lead(models.Model):
         ('URGENT', 'Urgent')
     )
 
-    lead_id = models.CharField(max_length=20, unique=True, default=uuid.uuid4)
+    lead_id = models.CharField(max_length=20, unique=True, blank=True)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     email = models.EmailField()
