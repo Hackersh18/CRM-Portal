@@ -206,7 +206,7 @@ class Business(models.Model):
 
     lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name='businesses')
     counsellor = models.ForeignKey(Counsellor, on_delete=models.CASCADE)
-    business_id = models.CharField(max_length=20, unique=True, default=uuid.uuid4)
+    business_id = models.CharField(max_length=20, unique=True, blank=True)
     title = models.CharField(max_length=200)
     description = models.TextField()
     value = models.DecimalField(max_digits=12, decimal_places=2)
