@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 
 import dj_database_url
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
@@ -33,13 +34,41 @@ def get_bool_env(name: str, default: bool = False) -> bool:
     return val.strip().lower() in ("1", "true", "yes", "on")
 
 
-SECRET_KEY = os.environ.get('SECRET_KEY')
+# Render/build pipelines often run collectstatic before runtime env is fully applied.
+# Allow a one-off dummy key only for known safe management commands.
+_DUMMY_BUILD_SECRET = "django-insecure-build-only-not-for-production"
+
+
+def _running_management_command(*names: str) -> bool:
+    return len(sys.argv) >= 2 and sys.argv[1] in names
+
+
+SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
-    raise ImproperlyConfigured("SECRET_KEY environment variable is required")
+    if _running_management_command(
+        "collectstatic", "migrate", "makemigrations", "check"
+    ):
+        SECRET_KEY = _DUMMY_BUILD_SECRET
+    else:
+        raise ImproperlyConfigured(
+            "SECRET_KEY environment variable is required. "
+            "On Render: Dashboard → your service → Environment → add SECRET_KEY."
+        )
 
 # DJANGO_DEBUG=True  -> DEBUG = True  (local/dev)
 # DJANGO_DEBUG=False -> DEBUG = False (production)
 DEBUG = get_bool_env('DJANGO_DEBUG', default=True)
+
+if (
+    not DEBUG
+    and SECRET_KEY == _DUMMY_BUILD_SECRET
+    and not _running_management_command(
+        "collectstatic", "migrate", "makemigrations", "check"
+    )
+):
+    raise ImproperlyConfigured(
+        "SECRET_KEY environment variable is required when DJANGO_DEBUG=False."
+    )
 
 _raw_allowed_hosts = (
     os.environ.get('DJANGO_ALLOWED_HOSTS')
