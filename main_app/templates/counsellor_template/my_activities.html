@@ -1,5 +1,6 @@
 {% extends 'main_app/base.html' %}
 {% load static %}
+{% load lead_tags %}
 {% block page_title %}{{page_title}}{% endblock page_title %}
 {% block content_title %}{{page_title}}{% endblock content_title %}
 
@@ -22,6 +23,7 @@
                                         <th>Activity Type</th>
                                         <th>Subject</th>
                                         <th>Outcome</th>
+                                        <th>Next Action</th>
                                         <th>Duration</th>
                                         <th>Status</th>
                                         <th>Actions</th>
@@ -37,6 +39,13 @@
                                         </td>
                                         <td>{{activity.subject}}</td>
                                         <td>{{activity.outcome|default:"-"}}</td>
+                                        <td>
+                                            {% if activity.next_action %}
+                                                <span class="badge badge-warning"><i class="fas fa-forward mr-1"></i>{% next_action_name activity.next_action %}</span>
+                                            {% else %}
+                                                <span class="text-muted">—</span>
+                                            {% endif %}
+                                        </td>
                                         <td>{{activity.duration}} min</td>
                                         <td>
                                             {% if activity.is_completed %}
@@ -46,9 +55,28 @@
                                             {% endif %}
                                         </td>
                                         <td>
-                                            <a href="{% url 'lead_detail' activity.lead.id %}" class="btn btn-sm btn-info" title="View Lead Details">
-                                                <i class="fas fa-eye"></i> View
-                                            </a>
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <a href="{% url 'lead_detail' activity.lead.id %}" class="btn btn-info" title="View Lead Details">
+                                                    <i class="fas fa-eye"></i> View
+                                                </a>
+                                                {% if not activity.is_completed %}
+                                                <form action="{% url 'mark_activity_complete' activity.lead.id activity.id %}" method="post" style="display:inline-block;">
+                                                    {% csrf_token %}
+                                                    <button type="submit" class="btn btn-success" title="Mark as Complete">
+                                                        <i class="fas fa-check"></i> Complete
+                                                    </button>
+                                                </form>
+                                                {% endif %}
+                                                <a href="{% url 'edit_lead_activity' activity.lead.id activity.id %}" class="btn btn-warning" title="Edit Activity">
+                                                    <i class="fas fa-edit"></i> Edit
+                                                </a>
+                                                <form action="{% url 'delete_lead_activity' activity.lead.id activity.id %}" method="post" style="display:inline;">
+                                                    {% csrf_token %}
+                                                    <button type="submit" class="btn btn-danger" title="Delete" onclick="return confirm('Delete this activity?')">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
                                         </td>
                                     </tr>
                                     {% endfor %}
@@ -72,12 +100,15 @@
 {% block custom_js %}
 <script>
     $(function () {
-        $("#example1").DataTable({
-            "responsive": true,
-            "lengthChange": false,
-            "autoWidth": false,
-            "buttons": ["copy", "csv", "excel", "pdf", "print", "colvis"]
-        }).buttons().container().appendTo('#example1_wrapper .col-md-6:eq(0)');
+        if ($('#example1').length) {
+            $("#example1").DataTable({
+                "responsive": false,
+                "scrollX": true,
+                "lengthChange": false,
+                "autoWidth": false,
+                "buttons": ["copy", "csv", "excel", "pdf", "print", "colvis"]
+            }).buttons().container().appendTo('#example1_wrapper .col-md-6:eq(0)');
+        }
     });
 </script>
 {% endblock custom_js %}

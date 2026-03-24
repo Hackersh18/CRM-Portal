@@ -18,62 +18,62 @@
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="form-group">
-                                        <label>Activity Type</label>
+                                        <label>Activity Type<span class="text-danger">*</span></label>
                                         {{form.activity_type}}
-                                        {% if form.activity_type.errors %}
-                                            <span class="text-danger">{{form.activity_type.errors}}</span>
-                                        {% endif %}
+                                        {% if form.activity_type.errors %}<span class="text-danger">{{form.activity_type.errors}}</span>{% endif %}
                                     </div>
                                     <div class="form-group">
-                                        <label>Subject</label>
+                                        <label>Subject<span class="text-danger">*</span></label>
                                         {{form.subject}}
-                                        {% if form.subject.errors %}
-                                            <span class="text-danger">{{form.subject.errors}}</span>
-                                        {% endif %}
+                                        {% if form.subject.errors %}<span class="text-danger">{{form.subject.errors}}</span>{% endif %}
                                     </div>
                                     <div class="form-group">
-                                        <label>Description</label>
+                                        <label>Description<span class="text-danger">*</span></label>
                                         {{form.description}}
-                                        {% if form.description.errors %}
-                                            <span class="text-danger">{{form.description.errors}}</span>
-                                        {% endif %}
+                                        {% if form.description.errors %}<span class="text-danger">{{form.description.errors}}</span>{% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Outcome<span class="text-danger">*</span></label>
+                                        {{form.outcome}}
+                                        {% if form.outcome.errors %}<span class="text-danger">{{form.outcome.errors}}</span>{% endif %}
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
-                                        <label>Outcome</label>
-                                        {{form.outcome}}
-                                        {% if form.outcome.errors %}
-                                            <span class="text-danger">{{form.outcome.errors}}</span>
-                                        {% endif %}
+                                        <label>Is there a next action?<span class="text-danger">*</span></label>
+                                        <div class="d-flex">
+                                            {% for radio in form.has_next_action %}
+                                                <div class="form-check form-check-inline">
+                                                    {{ radio.tag }}
+                                                    <label class="form-check-label ml-1">{{ radio.choice_label }}</label>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
                                     </div>
                                     <div class="form-group">
-                                        <label>Next Action</label>
-                                        {{form.next_action}}
-                                        {% if form.next_action.errors %}
-                                            <span class="text-danger">{{form.next_action.errors}}</span>
-                                        {% endif %}
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Scheduled Date</label>
-                                        {{form.scheduled_date}}
-                                        {% if form.scheduled_date.errors %}
-                                            <span class="text-danger">{{form.scheduled_date.errors}}</span>
-                                        {% endif %}
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Duration (minutes)</label>
+                                        <label>Duration (minutes)<span class="text-danger">*</span></label>
                                         {{form.duration}}
-                                        {% if form.duration.errors %}
-                                            <span class="text-danger">{{form.duration.errors}}</span>
-                                        {% endif %}
+                                        {% if form.duration.errors %}<span class="text-danger">{{form.duration.errors}}</span>{% endif %}
                                     </div>
                                     <div class="form-group">
                                         <label>Completed</label>
                                         {{form.is_completed}}
-                                        {% if form.is_completed.errors %}
-                                            <span class="text-danger">{{form.is_completed.errors}}</span>
-                                        {% endif %}
+                                        {% if form.is_completed.errors %}<span class="text-danger">{{form.is_completed.errors}}</span>{% endif %}
+                                    </div>
+                                    <div id="next-action-fields" style="display:none;">
+                                        <div class="form-group">
+                                            <label>Next Action<span class="text-danger">*</span></label>
+                                            {{form.next_action}}
+                                            {% if form.next_action.errors %}<span class="text-danger">{{form.next_action.errors}}</span>{% endif %}
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Next Follow-up Date<span class="text-danger">*</span></label>
+                                            {{form.followup_date}}
+                                            {% if form.followup_date.errors %}<span class="text-danger">{{form.followup_date.errors}}</span>{% endif %}
+                                        </div>
+                                        <div class="callout callout-info py-2">
+                                            <small><i class="fas fa-info-circle"></i> This activity will be marked as <strong>completed</strong> and a new follow-up will be created.</small>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -89,3 +89,26 @@
     </div>
 </section>
 {% endblock content %}
+
+{% block custom_js %}
+<script>
+$(function () {
+    function toggleNextAction() {
+        var isYes = $('input[name="has_next_action"]:checked').val() === 'yes';
+        if (isYes) {
+            $('#next-action-fields').slideDown();
+            $('#id_is_completed').prop('checked', true).prop('disabled', true);
+        } else {
+            $('#next-action-fields').slideUp();
+            $('#id_is_completed').prop('disabled', false);
+        }
+    }
+    $('input[name="has_next_action"]').change(toggleNextAction);
+    toggleNextAction();
+
+    $('form').on('submit', function () {
+        $('#id_is_completed').prop('disabled', false);
+    });
+});
+</script>
+{% endblock custom_js %}

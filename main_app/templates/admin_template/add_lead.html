@@ -46,6 +46,13 @@
                                         {% endif %}
                                     </div>
                                     <div class="form-group">
+                                        <label>Alternate Phone</label>
+                                        {{form.alternate_phone}}
+                                        {% if form.alternate_phone.errors %}
+                                            <span class="text-danger">{{form.alternate_phone.errors}}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
                                         <label>Course Interested In</label>
                                         {{form.course_interested}}
                                         {% if form.course_interested.errors %}
@@ -74,7 +81,7 @@
                                         {% endif %}
                                     </div>
                                     <div class="form-group">
-                                        <label>Next Follow-up</label>
+                                        <label>Next Visit Date</label>
                                         {{form.next_follow_up}}
                                         {% if form.next_follow_up.errors %}
                                             <span class="text-danger">{{form.next_follow_up.errors}}</span>
@@ -144,13 +151,6 @@
                                         {{form.assigned_counsellor}}
                                         {% if form.assigned_counsellor.errors %}
                                             <span class="text-danger">{{form.assigned_counsellor.errors}}</span>
-                                        {% endif %}
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Expected Value</label>
-                                        {{form.expected_value}}
-                                        {% if form.expected_value.errors %}
-                                            <span class="text-danger">{{form.expected_value.errors}}</span>
                                         {% endif %}
                                     </div>
                                     <div class="form-group">

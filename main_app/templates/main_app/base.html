@@ -4,6 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="icon" type="image/png" href="{% static 'assests/aehlogo.png' %}">
     <title>CRM System | {% block page_title %}{% endblock page_title %}</title>
     <!-- Tell the browser to be responsive to screen width -->
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -21,12 +22,62 @@
     <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.3.6/css/buttons.bootstrap4.min.css">
     <!-- Google Font: Source Sans Pro -->
     <link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700" rel="stylesheet">
+    <style>
+        /* Subtle watermark + security banner for counsellor users (user_type '2') */
+        .security-watermark {
+            position: fixed;
+            right: 8px;
+            bottom: 8px;
+            z-index: 999;
+            font-size: 11px;
+            color: rgba(0, 0, 0, 0.35);
+            pointer-events: none;
+            user-select: none;
+        }
+        .security-watermark strong {
+            font-weight: 600;
+        }
+        .security-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 998;
+        }
+        .security-banner-inner {
+            max-width: 100%;
+            padding: 4px 12px;
+            font-size: 12px;
+            background: rgba(255, 243, 205, 0.95);
+            color: #856404;
+            border-bottom: 1px solid #ffeeba;
+            text-align: center;
+        }
+        @media (max-width: 576px) {
+            .security-banner-inner {
+                font-size: 11px;
+                padding: 4px 6px;
+            }
+        }
+    </style>
     {% block custom_css %}
     {% endblock custom_css %}
 </head>
 
 <body class="hold-transition sidebar-mini layout-fixed">
     <div class="wrapper">
+        {% if request.user.is_authenticated and request.user.user_type == '2' %}
+        <!-- Visible deterrent: counsellor actions are logged and traceable -->
+        <div class="security-banner">
+            <div class="security-banner-inner">
+                <i class="fas fa-shield-alt"></i>
+                All views and key actions are logged with your account. Unauthorized sharing of student data is strictly prohibited.
+            </div>
+        </div>
+        <div class="security-watermark">
+            <strong>{{ request.user.email }}</strong> · Activity logged · {{ request.user.last_login|date:"Y-m-d H:i" }}
+        </div>
+        {% endif %}
         <!-- Navbar -->
         <nav class="main-header navbar navbar-expand navbar-white navbar-light">
             <!-- Left navbar links -->
@@ -87,6 +138,15 @@
                                     <p>Manage Counsellors</p>
                                 </a>
                             </li>
+                            {% if is_superadmin %}
+                            <li class="nav-item">
+                                <a href="{% url 'manage_admins' %}" class="nav-link">
+                                    <i class="nav-icon fas fa-user-shield"></i>
+                                    <p>Manage Admins</p>
+                                </a>
+                            </li>
+                            {% endif %}
+                            {% if perm_settings %}
                             <li class="nav-item">
                                 <a href="{% url 'manage_lead_sources' %}" class="nav-link">
                                     <i class="nav-icon fas fa-tags"></i>
@@ -94,11 +154,46 @@
                                 </a>
                             </li>
                             <li class="nav-item">
+                                <a href="{% url 'manage_lead_statuses' %}" class="nav-link">
+                                    <i class="nav-icon fas fa-flag"></i>
+                                    <p>Lead Statuses</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'manage_activity_types' %}" class="nav-link">
+                                    <i class="nav-icon fas fa-tasks"></i>
+                                    <p>Activity Types</p>
+                                </a>
+                            </li>
+                            {% endif %}
+                            <li class="nav-item">
+                                <a href="{% url 'manage_daily_targets' %}" class="nav-link">
+                                    <i class="nav-icon fas fa-bullseye"></i>
+                                    <p>Daily Targets</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'counsellor_activity_progress_report' %}" class="nav-link">
+                                    <i class="nav-icon fas fa-user-check"></i>
+                                    <p>Counsellor Activity</p>
+                                </a>
+                            </li>
+                            {% if perm_performance %}
+                            <li class="nav-item">
                                 <a href="{% url 'counsellor_performance' %}" class="nav-link">
                                     <i class="nav-icon fas fa-chart-bar"></i>
                                     <p>Performance</p>
                                 </a>
                             </li>
+                            {% endif %}
+                            {% if perm_counsellor_work %}
+                            <li class="nav-item">
+                                <a href="{% url 'counsellor_work_view' %}" class="nav-link">
+                                    <i class="nav-icon fas fa-user-tie"></i>
+                                    <p>Counsellor Work</p>
+                                </a>
+                            </li>
+                            {% endif %}
                         {% elif request.user.is_authenticated and request.user.user_type == '2' %}
                             <!-- Counsellor Menu -->
                             <li class="nav-item">
@@ -123,6 +218,22 @@
                                 <a href="{% url 'my_activities' %}" class="nav-link">
                                     <i class="nav-icon fas fa-history"></i>
                                     <p>My Activities</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'my_daily_target' %}" class="nav-link">
+                                    <i class="nav-icon fas fa-bullseye"></i>
+                                    <p>Today's Targets</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'pending_tasks' %}" class="nav-link">
+                                    <i class="nav-icon fas fa-clipboard-list"></i>
+                                    <p>Pending Tasks
+                                        {% if pending_task_count %}
+                                            <span class="badge badge-danger right">{{ pending_task_count }}</span>
+                                        {% endif %}
+                                    </p>
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -222,6 +333,22 @@
     <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.print.min.js"></script>
     <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.colVis.min.js"></script>
 
+    <script>
+    $(function () {
+        var now = new Date();
+        var min = now.getFullYear() + '-' +
+            String(now.getMonth() + 1).padStart(2, '0') + '-' +
+            String(now.getDate()).padStart(2, '0') + 'T' +
+            String(now.getHours()).padStart(2, '0') + ':' +
+            String(now.getMinutes()).padStart(2, '0');
+        $('input[type="datetime-local"]').each(function () {
+            if (!$(this).attr('min')) {
+                $(this).attr('min', min);
+            }
+        });
+    });
+    </script>
+
     {% block custom_js %}
     {% endblock custom_js %}
 
@@ -261,6 +388,7 @@
                     idleTimer = setTimeout(logout, IDLE_TIMEOUT);
                 }
             }
+            
             
             function startBackgroundTimer() {
                 clearTimeout(backgroundTimer);
@@ -427,5 +555,291 @@
             
         })();
     </script>
+    
+    <!-- Activity/Visit Time Notification Script for Counsellors -->
+    {% if request.user.is_authenticated and request.user.user_type == '2' %}
+    <script>
+        (function() {
+            let notifiedItems = new Set(); // Track notified items in this session
+            let checkInterval = null;
+            let notificationQueue = []; // Queue for multiple notifications
+            let isShowingNotification = false;
+            
+            function checkForNotifications() {
+                fetch('{% url "check_current_time_notifications" %}', {
+                    method: 'GET',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'same-origin'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.notifications && data.notifications.length > 0) {
+                        data.notifications.forEach(notification => {
+                            // Use unique_id for tracking
+                            const notificationId = notification.unique_id || `${notification.type}_${notification.id}_${notification.scheduled_time}`;
+                            
+                            if (!notifiedItems.has(notificationId)) {
+                                notificationQueue.push(notification);
+                                notifiedItems.add(notificationId);
+                                
+                                // Remove from set after 10 minutes to allow re-notification if needed
+                                setTimeout(() => {
+                                    notifiedItems.delete(notificationId);
+                                }, 600000); // 10 minutes
+                            }
+                        });
+                        
+                        // Process queue if not currently showing a notification
+                        if (!isShowingNotification && notificationQueue.length > 0) {
+                            processNotificationQueue();
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking notifications:', error);
+                });
+            }
+            
+            function processNotificationQueue() {
+                if (notificationQueue.length === 0) {
+                    isShowingNotification = false;
+                    return;
+                }
+                
+                isShowingNotification = true;
+                
+                // If multiple notifications, show combined modal
+                if (notificationQueue.length > 1) {
+                    showMultipleNotificationsModal(notificationQueue);
+                    notificationQueue = [];
+                    isShowingNotification = false;
+                } else {
+                    // Show single notification
+                    const notification = notificationQueue.shift();
+                    showNotificationPopup(notification, () => {
+                        // After closing, process next in queue
+                        setTimeout(() => {
+                            processNotificationQueue();
+                        }, 500);
+                    });
+                }
+            }
+            
+            function showMultipleNotificationsModal(notifications) {
+                // Group by type
+                const activities = notifications.filter(n => n.type === 'activity');
+                const followups = notifications.filter(n => n.type === 'followup');
+                
+                const modalId = 'multiple-notifications-modal';
+                let modalHtml = `
+                    <div class="modal fade" id="${modalId}" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
+                        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header bg-info">
+                                    <h5 class="modal-title text-white">
+                                        <i class="fas fa-bell"></i> 
+                                        Multiple Scheduled Items (${notifications.length})
+                                    </h5>
+                                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                </div>
+                                <div class="modal-body" style="max-height: 500px; overflow-y: auto;">
+                `;
+                
+                // Show activities section
+                if (activities.length > 0) {
+                    modalHtml += `
+                        <div class="mb-4">
+                            <h6 class="text-primary"><i class="fas fa-tasks"></i> Activities (${activities.length})</h6>
+                            <div class="list-group">
+                    `;
+                    activities.forEach((notification, index) => {
+                        const scheduledTime = new Date(notification.scheduled_time).toLocaleString();
+                        modalHtml += `
+                            <div class="list-group-item ${index < activities.length - 1 ? 'mb-2' : ''}">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">${notification.title}</h6>
+                                    <small class="text-muted">${scheduledTime}</small>
+                                </div>
+                                <p class="mb-1">${notification.message}</p>
+                                ${notification.description ? `<p class="mb-1 small text-muted">${notification.description}</p>` : ''}
+                                <a href="/counsellor/leads/${notification.lead_id}/" class="btn btn-sm btn-primary mt-2" onclick="$('#${modalId}').modal('hide');">
+                                    <i class="fas fa-eye"></i> View ${notification.lead_name}
+                                </a>
+                            </div>
+                        `;
+                    });
+                    modalHtml += `</div></div>`;
+                }
+                
+                // Show follow-ups section
+                if (followups.length > 0) {
+                    modalHtml += `
+                        <div class="mb-4">
+                            <h6 class="text-success"><i class="fas fa-calendar"></i> Visits (${followups.length})</h6>
+                            <div class="list-group">
+                    `;
+                    followups.forEach((notification, index) => {
+                        const scheduledTime = new Date(notification.scheduled_time).toLocaleString();
+                        modalHtml += `
+                            <div class="list-group-item ${index < followups.length - 1 ? 'mb-2' : ''}">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">${notification.title}</h6>
+                                    <small class="text-muted">${scheduledTime}</small>
+                                </div>
+                                <p class="mb-1">${notification.message}</p>
+                                ${notification.course_interested ? `<p class="mb-1 small text-muted"><strong>Course:</strong> ${notification.course_interested}</p>` : ''}
+                                <a href="/counsellor/leads/${notification.lead_id}/" class="btn btn-sm btn-success mt-2" onclick="$('#${modalId}').modal('hide');">
+                                    <i class="fas fa-eye"></i> View ${notification.lead_name}
+                                </a>
+                            </div>
+                        `;
+                    });
+                    modalHtml += `</div></div>`;
+                }
+                
+                modalHtml += `
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Dismiss All</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Remove existing modal if present
+                const existingModal = document.getElementById(modalId);
+                if (existingModal) {
+                    existingModal.remove();
+                }
+                
+                // Add modal to body
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                
+                // Show modal
+                $(`#${modalId}`).modal('show');
+                
+                // Play notification sound
+                playNotificationSound();
+                
+                // Auto-dismiss after 60 seconds
+                setTimeout(() => {
+                    if ($(`#${modalId}`).is(':visible')) {
+                        $(`#${modalId}`).modal('hide');
+                    }
+                }, 60000);
+            }
+            
+            function showNotificationPopup(notification, onClose) {
+                // Create modal HTML
+                const modalId = `notification-modal-${notification.type}-${notification.id}-${Date.now()}`;
+                const modalHtml = `
+                    <div class="modal fade" id="${modalId}" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
+                        <div class="modal-dialog modal-dialog-centered" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header ${notification.type === 'activity' ? 'bg-primary' : 'bg-success'}">
+                                    <h5 class="modal-title text-white">
+                                        <i class="fas fa-${notification.type === 'activity' ? 'tasks' : 'calendar'}"></i> 
+                                        ${notification.title}
+                                    </h5>
+                                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                </div>
+                                <div class="modal-body">
+                                    <p class="lead">${notification.message}</p>
+                                    ${notification.description ? `<p><strong>Description:</strong> ${notification.description}</p>` : ''}
+                                    ${notification.course_interested ? `<p><strong>Course Interested:</strong> ${notification.course_interested}</p>` : ''}
+                                    <p class="text-muted">
+                                        <i class="fas fa-clock"></i> 
+                                        Scheduled: ${new Date(notification.scheduled_time).toLocaleString()}
+                                    </p>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Dismiss</button>
+                                    <a href="/counsellor/leads/${notification.lead_id}/" class="btn btn-primary" onclick="$('#${modalId}').modal('hide');">
+                                        <i class="fas fa-eye"></i> View Lead Details
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Remove existing modal if present
+                const existingModal = document.getElementById(modalId);
+                if (existingModal) {
+                    existingModal.remove();
+                }
+                
+                // Add modal to body
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                
+                // Show modal with sound notification
+                $(`#${modalId}`).modal('show');
+                
+                // Handle close event
+                $(`#${modalId}`).on('hidden.bs.modal', function() {
+                    if (onClose) {
+                        onClose();
+                    }
+                });
+                
+                // Play notification sound
+                playNotificationSound();
+                
+                // Auto-dismiss after 30 seconds if not manually closed
+                setTimeout(() => {
+                    if ($(`#${modalId}`).is(':visible')) {
+                        $(`#${modalId}`).modal('hide');
+                    }
+                }, 30000);
+            }
+            
+            function playNotificationSound() {
+                try {
+                    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjGH0fPTgjMGHm7A7+OZUg4OUKfk8LZjHAY4kdfyzHksBSR3x/DdkEAKFF606euoVRQKRp/g8r5sIQYxh9Hz04IzBh5uwO/jmVIO');
+                    audio.play().catch(e => console.log('Audio play failed:', e));
+                } catch (e) {
+                    console.log('Audio not supported');
+                }
+            }
+            
+            // Start checking every 30 seconds
+            function startNotificationChecker() {
+                // Check immediately on page load
+                checkForNotifications();
+                
+                // Then check every 30 seconds
+                checkInterval = setInterval(checkForNotifications, 30000);
+            }
+            
+            // Start the checker when page loads
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', startNotificationChecker);
+            } else {
+                startNotificationChecker();
+            }
+            
+            // Stop checking when page is hidden to save resources
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                    if (checkInterval) {
+                        clearInterval(checkInterval);
+                        checkInterval = null;
+                    }
+                } else {
+                    if (!checkInterval) {
+                        startNotificationChecker();
+                    }
+                }
+            });
+        })();
+    </script>
+    {% endif %}
 </body>
 </html>

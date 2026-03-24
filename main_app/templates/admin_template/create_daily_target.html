@@ -1,0 +1,81 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card card-primary">
+                    <div class="card-header"><h3 class="card-title">Set Daily Target</h3></div>
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="card-body">
+                            <p class="text-muted mb-3">Enter the total number of tasks. The system will auto-prioritise: <strong>today's visits</strong> first, then <strong>pending activities</strong>, then <strong>leads by status</strong> (NEW last).</p>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Number of Tasks</label>
+                                        {{ form.target_count }}
+                                        {% if form.target_count.errors %}<span class="text-danger">{{ form.target_count.errors }}</span>{% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Date</label>
+                                        {{ form.target_date }}
+                                        {% if form.target_date.errors %}<span class="text-danger">{{ form.target_date.errors }}</span>{% endif %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <hr>
+                            <h5>Assign To</h5>
+                            <div class="form-group">
+                                {% for radio in form.assign_mode %}
+                                    <div class="form-check form-check-inline">
+                                        {{ radio.tag }}
+                                        <label class="form-check-label ml-1">{{ radio.choice_label }}</label>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            <div class="form-group" id="counsellor-select" style="display:none;">
+                                <label>Select Counsellors</label>
+                                <div class="row">
+                                    {% for checkbox in form.counsellors %}
+                                    <div class="col-md-4">
+                                        <div class="form-check">
+                                            {{ checkbox.tag }}
+                                            <label class="form-check-label ml-1">{{ checkbox.choice_label }}</label>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Set Target</button>
+                            <a href="{% url 'manage_daily_targets' %}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block custom_js %}
+<script>
+$(function () {
+    function toggleCounsellors() {
+        $('#counsellor-select').toggle($('input[name="assign_mode"]:checked').val() === 'selected');
+    }
+    $('input[name="assign_mode"]').change(toggleCounsellors);
+    toggleCounsellors();
+});
+</script>
+{% endblock custom_js %}

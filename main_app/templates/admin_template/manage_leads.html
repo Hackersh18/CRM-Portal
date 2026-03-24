@@ -1,7 +1,60 @@
 {% extends 'main_app/base.html' %}
 {% load static %}
+{% load lead_tags %}
 {% block page_title %}{{page_title}}{% endblock page_title %}
 {% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block custom_css %}
+<style>
+    /* Actions column styling */
+    table.dataTable tbody td:last-child {
+        white-space: nowrap;
+        min-width: 120px;
+        width: 120px;
+    }
+    
+    .btn-group-vertical.btn-group-sm {
+        width: 100%;
+    }
+    
+    .btn-group-vertical.btn-group-sm .btn {
+        width: 100%;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        text-align: left;
+        margin-bottom: 2px;
+    }
+    
+    .btn-group-vertical.btn-group-sm .btn:last-child {
+        margin-bottom: 0;
+    }
+    
+    .btn-group-vertical.btn-group-sm .btn i {
+        font-size: 0.875rem;
+        margin-right: 0.25rem;
+        width: 16px;
+        text-align: center;
+    }
+    
+    /* Ensure buttons fit well with text */
+    .btn-group-vertical.btn-group-sm .btn {
+        white-space: nowrap;
+    }
+    
+    /* Ensure Actions column is always visible */
+    table.dataTable.dtr-inline.collapsed > tbody > tr > td.child,
+    table.dataTable.dtr-inline.collapsed > tbody > tr > th.child {
+        padding-left: 0;
+    }
+    
+    /* Completely hide any Responsive '+' control column */
+    table.dataTable > thead > tr > th.dtr-control,
+    table.dataTable > tbody > tr > td.dtr-control {
+        display: none !important;
+    }
+</style>
+{% endblock custom_css %}
 
 {% block content %}
 <section class="content">
@@ -24,12 +77,107 @@
                         </div>
                     </div>
                     <div class="card-body">
+                        <!-- Filter Form -->
+                        <form method="get" action="{% url 'manage_leads' %}" class="mb-3">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label for="search">Search</label>
+                                        <input type="text" class="form-control" id="search" name="search" 
+                                               placeholder="Name, Email, Phone, ID..." value="{{ search_query }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="form-group">
+                                        <label for="status">Status</label>
+                                        <select class="form-control" id="status" name="status">
+                                            <option value="">All Statuses</option>
+                                            {% for status_code, status_name in lead_statuses %}
+                                                <option value="{{ status_code }}" {% if status_filter == status_code %}selected{% endif %}>
+                                                    {{ status_name }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="form-group">
+                                        <label for="priority">Priority</label>
+                                        <select class="form-control" id="priority" name="priority">
+                                            <option value="">All Priorities</option>
+                                            {% for priority_code, priority_name in lead_priorities %}
+                                                <option value="{{ priority_code }}" {% if priority_filter == priority_code %}selected{% endif %}>
+                                                    {{ priority_name }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="form-group">
+                                        <label for="counsellor">Counsellor</label>
+                                        <select class="form-control" id="counsellor" name="counsellor">
+                                            <option value="">All Counsellors</option>
+                                            {% for counsellor in all_counsellors %}
+                                                <option value="{{ counsellor.id }}" {% if counsellor_filter == counsellor.id|stringformat:"d" %}selected{% endif %}>
+                                                    {{ counsellor.admin.first_name }} {{ counsellor.admin.last_name }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="form-group">
+                                        <label for="source">Source</label>
+                                        <select class="form-control" id="source" name="source">
+                                            <option value="">All Sources</option>
+                                            {% for source in all_sources %}
+                                                <option value="{{ source.id }}" {% if source_filter == source.id|stringformat:"d" %}selected{% endif %}>
+                                                    {{ source.name }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-1">
+                                    <div class="form-group">
+                                        <label>&nbsp;</label>
+                                        <div>
+                                            <button type="submit" class="btn btn-primary btn-block">
+                                                <i class="fas fa-filter"></i> Filter
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% if search_query or status_filter or priority_filter or counsellor_filter or source_filter %}
+                            <div class="row">
+                                <div class="col-12">
+                                    <a href="{% url 'manage_leads' %}" class="btn btn-sm btn-secondary">
+                                        <i class="fas fa-times"></i> Clear Filters
+                                    </a>
+                                    <small class="text-muted ml-2">
+                                        {% if search_query %}<span class="badge badge-info">Search: {{ search_query }}</span>{% endif %}
+                                        {% if status_filter %}<span class="badge badge-info">Status: {{ status_display }}</span>{% endif %}
+                                        {% if priority_filter %}<span class="badge badge-info">Priority: {{ priority_display }}</span>{% endif %}
+                                        {% if counsellor_filter %}<span class="badge badge-info">Counsellor: {{ selected_counsellor_name }}</span>{% endif %}
+                                        {% if source_filter %}<span class="badge badge-info">Source: {{ selected_source_name }}</span>{% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </form>
+
+                        <form method="post" action="{% url 'bulk_delete_leads' %}">
+                        {% csrf_token %}
                         <table id="example1" class="table table-bordered table-striped">
                             <thead>
                                 <tr>
+                                    <th>
+                                        <input type="checkbox" id="select-all">
+                                    </th>
                                     <th>ID</th>
                                     <th>Name</th>
-                                    <th>Email</th>
                                     <th>Phone</th>
                                     <th>Course Interested In</th>
                                     <th>School Name</th>
@@ -37,34 +185,31 @@
                                     <th>Status</th>
                                     <th>Priority</th>
                                     <th>Counsellor</th>
-                                    <th>Expected Value</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for lead in leads %}
                                 <tr>
+                                    <td>
+                                        <input type="checkbox" name="lead_ids" value="{{ lead.id }}" class="lead-checkbox">
+                                    </td>
                                     <td>{{lead.id}}</td>
                                     <td>{{lead.first_name}} {{lead.last_name}}</td>
-                                    <td>{{lead.email}}</td>
-                                    <td>{{lead.phone}}</td>
+                                    <td>
+                                        {% if lead.phone %}
+                                            <a href="tel:{{ lead.phone }}" class="text-primary">
+                                                <i class="fas fa-phone"></i> {{ lead.phone }}
+                                            </a>
+                                        {% else %}
+                                            <span class="text-muted">Not provided</span>
+                                        {% endif %}
+                                    </td>
                                     <td>{{lead.course_interested|default:"-"}}</td>
                                     <td>{{lead.school_name|default:"-"}}</td>
                                     <td>{{lead.source.name}}</td>
                                     <td>
-                                        {% if lead.status == 'NEW' %}
-                                            <span class="badge badge-info">New</span>
-                                        {% elif lead.status == 'CONTACTED' %}
-                                            <span class="badge badge-warning">Contacted</span>
-                                        {% elif lead.status == 'QUALIFIED' %}
-                                            <span class="badge badge-success">Qualified</span>
-                                        {% elif lead.status == 'CLOSED_WON' %}
-                                            <span class="badge badge-primary">Closed Won</span>
-                                        {% elif lead.status == 'CLOSED_LOST' %}
-                                            <span class="badge badge-danger">Closed Lost</span>
-                                        {% else %}
-                                            <span class="badge badge-secondary">{{lead.status}}</span>
-                                        {% endif %}
+                                        {% status_badge lead.status %}
                                     </td>
                                     <td>
                                         {% if lead.priority == 'LOW' %}
@@ -84,26 +229,69 @@
                                             <span class="text-muted">Not assigned</span>
                                         {% endif %}
                                     </td>
-                                    <td>₹{{lead.expected_value}}</td>
-                                    <td>
-                                        <a href="{% url 'admin_view_lead' lead.id %}" class="btn btn-sm btn-primary">
-                                            <i class="fas fa-eye"></i> View
-                                        </a>
-                                        <a href="{% url 'edit_lead' lead.id %}" class="btn btn-sm btn-info">
-                                            <i class="fas fa-edit"></i> Edit
-                                        </a>
-                                        <a href="{% url 'delete_lead' lead.id %}" class="btn btn-sm btn-danger" 
-                                           onclick="return confirm('Are you sure you want to delete this lead?')">
-                                            <i class="fas fa-trash"></i> Delete
-                                        </a>
-                                        <a href="{% url 'transfer_lead' lead.id %}" class="btn btn-sm btn-warning">
-                                            <i class="fas fa-exchange-alt"></i> Transfer
-                                        </a>
+                                    <td class="text-nowrap" data-priority="1">
+                                        <div class="btn-group-vertical btn-group-sm" role="group" aria-label="Lead actions">
+                                            <a href="{% url 'admin_view_lead' lead.id %}" class="btn btn-primary btn-sm" title="View Details">
+                                                <i class="fas fa-eye"></i> View
+                                            </a>
+                                            <a href="{% url 'edit_lead' lead.id %}" class="btn btn-info btn-sm" title="Edit Lead">
+                                                <i class="fas fa-edit"></i> Edit
+                                            </a>
+                                            <a href="{% url 'transfer_lead' lead.id %}" class="btn btn-warning btn-sm" title="Transfer Lead">
+                                                <i class="fas fa-exchange-alt"></i> Transfer
+                                            </a>
+                                            {% if perm_delete %}
+                                            <form action="{% url 'delete_lead' lead.id %}" method="post" style="display:block; width:100%;">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-danger btn-sm" title="Delete Lead" style="width:100%;"
+                                                   onclick="return confirm('Are you sure you want to delete this lead?')">
+                                                    <i class="fas fa-trash"></i> Delete
+                                                </button>
+                                            </form>
+                                            {% endif %}
+                                        </div>
                                     </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
+                        <button type="submit" class="btn btn-danger mt-2"
+                                onclick="return confirm('Are you sure you want to delete the selected leads?')">
+                            <i class="fas fa-trash"></i> Delete Selected
+                        </button>
+                        </form>
+
+                        {% if leads.paginator %}
+                        <div class="mt-3">
+                            <ul class="pagination pagination-sm m-0 float-right">
+                                {% if leads.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ leads.previous_page_number }}{% if query_string %}&{{ query_string }}{% endif %}">&laquo;</a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+                                {% endif %}
+
+                                {% for num in leads.paginator.page_range %}
+                                    {% if num == leads.number %}
+                                        <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                                    {% elif num >= leads.number|add:'-2' and num <= leads.number|add:'2' %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ num }}{% if query_string %}&{{ query_string }}{% endif %}">{{ num }}</a>
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+
+                                {% if leads.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ leads.next_page_number }}{% if query_string %}&{{ query_string }}{% endif %}">&raquo;</a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -115,12 +303,52 @@
 {% block custom_js %}
 <script>
     $(function () {
-        $("#example1").DataTable({
-            "responsive": true,
+        var table = $("#example1").DataTable({
+            // Disable Responsive plugin so no '+' icon column is added;
+            // use horizontal scrolling instead so Actions always stay visible.
+            "responsive": false,
+            "columnDefs": [
+                {
+                    "targets": 0, // Select checkbox column
+                    "orderable": false,
+                    "searchable": false,
+                    "className": "text-center"
+                },
+                {
+                    "targets": -1, // Actions column (last column)
+                    "orderable": false,
+                    "className": "text-center"
+                },
+                {
+                    "targets": 2, // Name column
+                    "responsivePriority": 1
+                },
+                {
+                    "targets": [3, 4, 5, 6, 7, 8, 9, 10], // Other columns
+                    "responsivePriority": 3
+                }
+            ],
+            "paging": false,          // use Django paginator instead of DataTables paging
+            "info": false,            // hide "Showing X of Y" since Django handles it
             "lengthChange": false,
             "autoWidth": false,
-            "buttons": ["copy", "csv", "excel", "pdf", "print", "colvis"]
+            "buttons": ["copy", "csv", "excel", "pdf", "print", "colvis"],
+            "order": [[1, "desc"]], // Sort by ID descending (ID column is index 1)
+            "pageLength": 25,
+            "scrollX": true // Enable horizontal scrolling if needed
         }).buttons().container().appendTo('#example1_wrapper .col-md-6:eq(0)');
+        
+        // Initialize tooltips
+        $('[data-toggle="tooltip"]').tooltip();
+
+        // Select / deselect all checkboxes
+        $('#select-all').on('click', function () {
+            var checked = this.checked;
+            $('.lead-checkbox').each(function () {
+                this.checked = checked;
+            });
+        });
+
     });
 </script>
 {% endblock custom_js %}

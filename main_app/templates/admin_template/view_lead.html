@@ -1,5 +1,6 @@
 {% extends 'main_app/base.html' %}
 {% load static %}
+{% load lead_tags %}
 {% block page_title %}{{page_title}}{% endblock page_title %}
 {% block content_title %}{{page_title}}{% endblock content_title %}
 
@@ -61,7 +62,27 @@
                                     </tr>
                                     <tr>
                                         <td><strong>Phone:</strong></td>
-                                        <td>{{lead.phone}}</td>
+                                        <td>
+                                            {% if lead.phone %}
+                                                <a href="tel:{{ lead.phone }}" class="text-primary">
+                                                    <i class="fas fa-phone"></i> {{ lead.phone }}
+                                                </a>
+                                            {% else %}
+                                                <span class="text-muted">Not provided</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Alternate Phone:</strong></td>
+                                        <td>
+                                            {% if lead.alternate_phone %}
+                                                <a href="tel:{{ lead.alternate_phone }}" class="text-primary">
+                                                    <i class="fas fa-phone"></i> {{ lead.alternate_phone }}
+                                                </a>
+                                            {% else %}
+                                                <span class="text-muted">Not provided</span>
+                                            {% endif %}
+                                        </td>
                                     </tr>
                                     <tr>
                                         <td><strong>School Name:</strong></td>
@@ -110,24 +131,12 @@
                         
                         <div class="row mt-3">
                             <div class="col-md-6">
-                                <h5><i class="fas fa-chart-line"></i> Lead Status & Value</h5>
+                                <h5><i class="fas fa-chart-line"></i> Lead Status</h5>
                                 <table class="table table-borderless">
                                     <tr>
                                         <td><strong>Status:</strong></td>
                                         <td>
-                                            {% if lead.status == 'NEW' %}
-                                                <span class="badge badge-info">New</span>
-                                            {% elif lead.status == 'CONTACTED' %}
-                                                <span class="badge badge-warning">Contacted</span>
-                                            {% elif lead.status == 'QUALIFIED' %}
-                                                <span class="badge badge-success">Qualified</span>
-                                            {% elif lead.status == 'CONVERTED' %}
-                                                <span class="badge badge-primary">Converted</span>
-                                            {% elif lead.status == 'LOST' %}
-                                                <span class="badge badge-danger">Lost</span>
-                                            {% else %}
-                                                <span class="badge badge-secondary">{{lead.status}}</span>
-                                            {% endif %}
+                                            {% status_badge lead.status %}
                                         </td>
                                     </tr>
                                     <tr>
@@ -145,10 +154,6 @@
                                                 <span class="badge badge-secondary">{{lead.priority}}</span>
                                             {% endif %}
                                         </td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Expected Value:</strong></td>
-                                        <td>${{lead.expected_value|default:"0"}}</td>
                                     </tr>
                                     <tr>
                                         <td><strong>Actual Value:</strong></td>

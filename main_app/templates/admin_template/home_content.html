@@ -5,6 +5,15 @@
 
 {% block custom_css %}
 <style>
+    /* Smooth transition for more actions */
+    #moreActions.collapsed {
+        display: none !important;
+    }
+    
+    #moreActions:not(.collapsed) {
+        display: flex !important;
+    }
+    
     .info-box {
         box-shadow: 0 0 1px rgba(0,0,0,.125), 0 1px 3px rgba(0,0,0,.2);
         border-radius: 0.25rem;
@@ -52,6 +61,43 @@
         font-size: 1.25rem;
         margin: 0;
     }
+    
+    /* Quick Actions Button Styling */
+    .quick-actions .btn-lg {
+        padding: 1.5rem 1rem;
+        font-size: 1rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        border-radius: 0.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .quick-actions .btn-lg:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    
+    .quick-actions .btn-lg i {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+    
+    .quick-actions .card {
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .quick-actions .card-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-bottom: none;
+    }
+    
+    .quick-actions .card-header h3 {
+        margin: 0;
+        font-weight: 600;
+    }
 </style>
 {% endblock custom_css %}
 
@@ -85,22 +131,110 @@
             <div class="col-12 col-sm-6 col-md-3">
                 <div class="info-box">
                     <span class="info-box-icon bg-warning">
-                        <i class="fas fa-briefcase"></i>
+                        <i class="fas fa-check-circle"></i>
                     </span>
                     <div class="info-box-content">
-                        <span class="info-box-text">Total Business</span>
-                        <span class="info-box-number">₹{{total_business|floatformat:0}}</span>
+                        <span class="info-box-text">Total Converted Leads</span>
+                        <span class="info-box-number">{{total_business}}</span>
                     </div>
                 </div>
             </div>
             <div class="col-12 col-sm-6 col-md-3">
                 <div class="info-box">
                     <span class="info-box-icon bg-danger">
-                        <i class="fas fa-chart-line"></i>
+                        <i class="fas fa-calendar-check"></i>
                     </span>
                     <div class="info-box-content">
-                        <span class="info-box-text">Monthly Business</span>
-                        <span class="info-box-number">₹{{monthly_business|floatformat:0}}</span>
+                        <span class="info-box-text">Monthly Converted Leads</span>
+                        <span class="info-box-number">{{monthly_business}}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions Section -->
+        <div class="row quick-actions">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-bolt"></i> Quick Actions</h3>
+                        <div class="card-tools">
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="toggleMoreActions()" id="toggleActionsBtn">
+                                <i class="fas fa-chevron-down"></i> Show More
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <a href="{% url 'add_lead' %}" class="btn btn-primary btn-block btn-lg">
+                                    <i class="fas fa-plus-circle"></i><br>
+                                    Add Lead
+                                </a>
+                            </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <a href="{% url 'import_leads' %}" class="btn btn-success btn-block btn-lg">
+                                    <i class="fas fa-file-import"></i><br>
+                                    Import Leads
+                                </a>
+                            </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <a href="{% url 'manage_leads' %}" class="btn btn-info btn-block btn-lg">
+                                    <i class="fas fa-list"></i><br>
+                                    Manage Leads
+                                </a>
+                            </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <a href="{% url 'assign_leads_to_counsellors' %}" class="btn btn-warning btn-block btn-lg">
+                                    <i class="fas fa-user-check"></i><br>
+                                    Assign Leads
+                                </a>
+                            </div>
+                        </div>
+                        <div class="row collapsed" id="moreActions">
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <a href="{% url 'add_counsellor' %}" class="btn btn-secondary btn-block btn-lg">
+                                    <i class="fas fa-user-plus"></i><br>
+                                    Add Counsellor
+                                </a>
+                            </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <a href="{% url 'manage_counsellors' %}" class="btn btn-dark btn-block btn-lg">
+                                    <i class="fas fa-users-cog"></i><br>
+                                    Manage Counsellors
+                                </a>
+                            </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <a href="{% url 'add_admin' %}" class="btn btn-info btn-block btn-lg">
+                                    <i class="fas fa-user-shield"></i><br>
+                                    Add Admin
+                                </a>
+                            </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <a href="{% url 'manage_admins' %}" class="btn btn-warning btn-block btn-lg">
+                                    <i class="fas fa-user-shield"></i><br>
+                                    Manage Admins
+                                </a>
+                            </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <a href="{% url 'counsellor_performance' %}" class="btn btn-danger btn-block btn-lg">
+                                    <i class="fas fa-chart-bar"></i><br>
+                                    Performance
+                                </a>
+                            </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <a href="{% url 'manage_lead_sources' %}" class="btn btn-outline-primary btn-block btn-lg">
+                                    <i class="fas fa-tags"></i><br>
+                                    Lead Sources
+                                </a>
+                            </div>
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <a href="{% url 'counsellor_work_view' %}" class="btn btn-outline-success btn-block btn-lg">
+                                    <i class="fas fa-user-tie"></i><br>
+                                    Counsellor Work
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -333,5 +467,23 @@
             }
         }
     });
+    
+    // Toggle more actions - define globally so onclick can access it
+    window.toggleMoreActions = function() {
+        var moreActions = document.getElementById('moreActions');
+        var toggleBtn = document.getElementById('toggleActionsBtn');
+        
+        if (moreActions && toggleBtn) {
+            if (moreActions.classList.contains('collapsed')) {
+                // Expand - remove collapsed class to show the row with Bootstrap's natural flex layout
+                moreActions.classList.remove('collapsed');
+                toggleBtn.innerHTML = '<i class="fas fa-chevron-up"></i> Show Less';
+            } else {
+                // Collapse
+                moreActions.classList.add('collapsed');
+                toggleBtn.innerHTML = '<i class="fas fa-chevron-down"></i> Show More';
+            }
+        }
+    };
 </script>
 {% endblock custom_js %}

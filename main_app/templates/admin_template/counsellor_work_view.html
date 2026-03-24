@@ -1,0 +1,372 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% load lead_tags %}
+{% load tz %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block custom_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap4.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.3.6/css/buttons.bootstrap4.min.css">
+<style>
+    .stats-card {
+        border-left: 4px solid #007bff;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    .stats-card.success {
+        border-left-color: #28a745;
+    }
+    .stats-card.warning {
+        border-left-color: #ffc107;
+    }
+    .stats-card.info {
+        border-left-color: #17a2b8;
+    }
+</style>
+{% endblock custom_css %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-user-tie"></i> Counsellor Work View</h3>
+                        <div class="card-tools">
+                            <a href="{% url 'admin_home' %}" class="btn btn-sm btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Back to Dashboard
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Filter Form -->
+                        <form method="get" action="{% url 'counsellor_work_view' %}" class="mb-4">
+                            <div class="row align-items-end">
+                                <div class="col-lg-4 col-md-6">
+                                    <div class="form-group">
+                                        <label for="counsellor">Counsellor</label>
+                                        <select class="form-control" id="counsellor" name="counsellor">
+                                            <option value="">All Counsellors</option>
+                                            {% for counsellor in all_counsellors %}
+                                                <option value="{{ counsellor.id }}" {% if counsellor_id|stringformat:"d" == counsellor.id|stringformat:"d" %}selected{% endif %}>
+                                                    {{ counsellor.admin.first_name }} {{ counsellor.admin.last_name }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-lg-2 col-md-6">
+                                    <div class="form-group">
+                                        <label for="date_from">From date</label>
+                                        <input type="date" class="form-control" id="date_from" name="date_from" value="{{ date_from }}">
+                                    </div>
+                                </div>
+                                <div class="col-lg-2 col-md-6">
+                                    <div class="form-group">
+                                        <label for="date_to">To date</label>
+                                        <input type="date" class="form-control" id="date_to" name="date_to" value="{{ date_to }}">
+                                    </div>
+                                </div>
+                                <div class="col-lg-4 col-md-12">
+                                    <div class="form-group mb-lg-0">
+                                        <label class="d-none d-lg-block">&nbsp;</label>
+                                        <div class="d-flex flex-wrap" style="gap: 0.5rem;">
+                                            <button type="submit" class="btn btn-primary flex-grow-1 flex-lg-grow-0">
+                                                <i class="fas fa-filter"></i> Apply filters
+                                            </button>
+                                            <a href="{% url 'counsellor_work_view' %}" class="btn btn-secondary flex-grow-1 flex-lg-grow-0">
+                                                <i class="fas fa-times"></i> Clear
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-lg-3 col-md-6">
+                                    <div class="form-group">
+                                        <label for="activity_type">Activity type</label>
+                                        <select class="form-control" id="activity_type" name="activity_type">
+                                            <option value="">All types</option>
+                                            {% for code, label in activity_type_choices %}
+                                                <option value="{{ code }}" {% if activity_type_f == code %}selected{% endif %}>{{ label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-lg-2 col-md-6">
+                                    <div class="form-group">
+                                        <label for="activity_status">Activity status</label>
+                                        <select class="form-control" id="activity_status" name="activity_status">
+                                            <option value="" {% if not activity_status %}selected{% endif %}>All</option>
+                                            <option value="completed" {% if activity_status == 'completed' %}selected{% endif %}>Completed</option>
+                                            <option value="pending" {% if activity_status == 'pending' %}selected{% endif %}>Pending</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-lg-2 col-md-6">
+                                    <div class="form-group">
+                                        <label for="lead_status">Lead status</label>
+                                        <select class="form-control" id="lead_status" name="lead_status">
+                                            <option value="">All statuses</option>
+                                            {% for code, label in lead_status_choices %}
+                                                <option value="{{ code }}" {% if lead_status_f == code %}selected{% endif %}>{{ label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-lg-2 col-md-6">
+                                    <div class="form-group">
+                                        <label for="lead_source">Lead source</label>
+                                        <select class="form-control" id="lead_source" name="lead_source">
+                                            <option value="">All sources</option>
+                                            {% for src in lead_sources %}
+                                                <option value="{{ src.id }}" {% if lead_source_f == src.id|stringformat:"d" %}selected{% endif %}>{{ src.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-lg-3 col-md-6">
+                                    <div class="form-group">
+                                        <label for="lead_priority">Lead priority</label>
+                                        <select class="form-control" id="lead_priority" name="lead_priority">
+                                            <option value="">All priorities</option>
+                                            {% for code, label in lead_priority_choices %}
+                                                <option value="{{ code }}" {% if lead_priority_f == code %}selected{% endif %}>{{ label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-12">
+                                    <small class="text-muted d-flex flex-wrap align-items-center" style="gap: 0.35rem;">
+                                        <span class="badge badge-secondary">Period: {{ date_from }} → {{ date_to }}</span>
+                                        {% if selected_counsellor %}<span class="badge badge-info">Counsellor: {{ selected_counsellor.admin.first_name }} {{ selected_counsellor.admin.last_name }}</span>{% endif %}
+                                        {% if activity_type_f %}<span class="badge badge-primary">Type: {{ activity_type_f }}</span>{% endif %}
+                                        {% if activity_status %}<span class="badge badge-primary">Activity: {{ activity_status }}</span>{% endif %}
+                                        {% if lead_status_f %}<span class="badge badge-primary">Lead status: {{ lead_status_f }}</span>{% endif %}
+                                        {% if lead_source_f %}<span class="badge badge-primary">Source: {{ selected_source_name|default:lead_source_f }}</span>{% endif %}
+                                        {% if lead_priority_f %}<span class="badge badge-primary">Priority: {{ lead_priority_f }}</span>{% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                        </form>
+                        
+                        <!-- Statistics -->
+                        <div class="row mb-4">
+                            <div class="col-md-3">
+                                <div class="card stats-card info">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Total Activities</h5>
+                                        <h3 class="mb-0">{{ total_activities }}</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card stats-card success">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Completed</h5>
+                                        <h3 class="mb-0">{{ completed_activities }}</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card stats-card warning">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Pending</h5>
+                                        <h3 class="mb-0">{{ pending_activities }}</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card stats-card">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Visit Dates</h5>
+                                        <h3 class="mb-0">{{ total_followups }}</h3>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Activities Table -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-tasks"></i> Activities</h3>
+                            </div>
+                            <div class="card-body">
+                                {% if total_activities %}
+                                    <div class="table-responsive">
+                                        <table id="activitiesTable" class="table table-bordered table-striped">
+                                            <thead>
+                                                <tr>
+                                                    <th>Date</th>
+                                                    <th>Counsellor</th>
+                                                    <th>Lead</th>
+                                                    <th>Activity Type</th>
+                                                    <th>Subject</th>
+                                                    <th>Description</th>
+                                                    <th>Status</th>
+                                                    <th>Duration</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for activity in activities %}
+                                                <tr>
+                                                    <td>
+                                                        {% if activity.scheduled_date %}
+                                                            {{ activity.scheduled_date|localtime|date:"M d, Y H:i" }}
+                                                        {% else %}
+                                                            {{ activity.completed_date|localtime|date:"M d, Y H:i" }}
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if activity.counsellor %}
+                                                            {{ activity.counsellor.admin.first_name }} {{ activity.counsellor.admin.last_name }}
+                                                        {% else %}
+                                                            <span class="text-muted">Unassigned</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        <a href="{% url 'admin_view_lead' activity.lead.id %}">
+                                                            {{ activity.lead.first_name }} {{ activity.lead.last_name }}
+                                                        </a>
+                                                    </td>
+                                                    <td>{% activity_type_badge activity.activity_type %}</td>
+                                                    <td>{{ activity.subject }}</td>
+                                                    <td>{{ activity.description|truncatewords:10|default:"-" }}</td>
+                                                    <td>
+                                                        {% if activity.is_completed %}
+                                                            <span class="badge badge-success">Completed</span>
+                                                        {% else %}
+                                                            <span class="badge badge-warning">Pending</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>{{ activity.duration }} min</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {% if activities.paginator.num_pages > 1 %}
+                                    <nav class="mt-3" aria-label="Activities pages">
+                                        <ul class="pagination pagination-sm mb-0">
+                                            {% if activities.has_previous %}
+                                            <li class="page-item"><a class="page-link" href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ activities.previous_page_number }}">Previous</a></li>
+                                            {% endif %}
+                                            <li class="page-item disabled"><span class="page-link">Page {{ activities.number }} of {{ activities.paginator.num_pages }}</span></li>
+                                            {% if activities.has_next %}
+                                            <li class="page-item"><a class="page-link" href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ activities.next_page_number }}">Next</a></li>
+                                            {% endif %}
+                                        </ul>
+                                    </nav>
+                                    {% endif %}
+                                {% else %}
+                                    <p class="text-muted text-center py-4">No activities found for the selected filters.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Follow-ups / visit dates -->
+                        <div class="card mt-4">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-calendar"></i> Visit Dates <small class="text-muted">(up to 100 in range)</small></h3>
+                            </div>
+                            <div class="card-body">
+                                {% if followups %}
+                                <div class="table-responsive">
+                                    <table id="followupsTable" class="table table-bordered table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Counsellor</th>
+                                                <th>Lead</th>
+                                                <th>Course Interested</th>
+                                                <th>School</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for lead in followups %}
+                                            <tr>
+                                                <td>{{ lead.next_follow_up|localtime|date:"M d, Y H:i" }}</td>
+                                                <td>
+                                                    {% if lead.assigned_counsellor %}
+                                                        {{ lead.assigned_counsellor.admin.first_name }} {{ lead.assigned_counsellor.admin.last_name }}
+                                                    {% else %}
+                                                        <span class="text-muted">Unassigned</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <a href="{% url 'admin_view_lead' lead.id %}">
+                                                        {{ lead.first_name }} {{ lead.last_name }}
+                                                    </a>
+                                                </td>
+                                                <td>{{ lead.course_interested|default:"-" }}</td>
+                                                <td>{{ lead.school_name|default:"-" }}</td>
+                                                <td>
+                                                    {% status_badge lead.status %}
+                                                </td>
+                                                <td>
+                                                    <a href="{% url 'admin_view_lead' lead.id %}" class="btn btn-sm btn-info">
+                                                        <i class="fas fa-eye"></i> View
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% else %}
+                                <p class="text-muted text-center py-4 mb-0">No visit dates in this period for the selected filters.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block custom_js %}
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap4.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.bootstrap4.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.print.min.js"></script>
+<script>
+    $(function () {
+        // Initialize Activities DataTable
+        if ($('#activitiesTable').length) {
+            $('#activitiesTable').DataTable({
+                "responsive": true,
+                "lengthChange": true,
+                "autoWidth": false,
+                "pageLength": 25,
+                "order": [[0, "desc"]], // Sort by date descending
+                "buttons": ["copy", "csv", "excel", "pdf", "print"]
+            }).buttons().container().appendTo('#activitiesTable_wrapper .col-md-6:eq(0)');
+        }
+        
+        // Initialize Follow-ups DataTable
+        if ($('#followupsTable').length) {
+            $('#followupsTable').DataTable({
+                "responsive": true,
+                "lengthChange": true,
+                "autoWidth": false,
+                "pageLength": 25,
+                "order": [[0, "asc"]], // Sort by date ascending
+                "buttons": ["copy", "csv", "excel", "pdf", "print"]
+            }).buttons().container().appendTo('#followupsTable_wrapper .col-md-6:eq(0)');
+        }
+    });
+</script>
+{% endblock custom_js %}

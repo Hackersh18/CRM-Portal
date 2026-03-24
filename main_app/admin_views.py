@@ -7,11 +7,11 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import (HttpResponse, HttpResponseRedirect,
                               get_object_or_404, redirect, render)
 from django.templatetags.static import static
+from django.conf import settings
 from django.urls import reverse
-from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import UpdateView
+from django.views.decorators.http import require_POST
 from django.contrib.auth.hashers import make_password
-from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Sum, Avg, Q, Case, When, Value, DecimalField
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
@@ -19,40 +19,51 @@ import logging
 
 from .forms import *
 from .models import *
-from .utils import paginate_queryset
+from .utils import paginate_queryset, user_type_required, admin_perm_required, get_counsellor_activity_snapshot
+
+admin_required = user_type_required('1')
 
 
+@admin_required
 def admin_home(request):
     """Admin Dashboard with comprehensive CRM analytics"""
     
     try:
-        # Basic Statistics
+        # Basic Statistics - optimized with single queries
         total_counsellors = Counsellor.objects.filter(is_active=True).count()
         total_leads = Lead.objects.count()
-        total_business = Business.objects.filter(status='ACTIVE').aggregate(
-            total=Sum('value'))['total'] or 0
+        # Total successfully converted leads (CLOSED_WON)
+        total_business = Lead.objects.filter(status='CLOSED_WON').count()
         
-        # Lead Statistics
-        new_leads = Lead.objects.filter(status='NEW').count()
-        contacted_leads = Lead.objects.filter(status='CONTACTED').count()
-        qualified_leads = Lead.objects.filter(status='QUALIFIED').count()
-        closed_won = Lead.objects.filter(status='CLOSED_WON').count()
-        closed_lost = Lead.objects.filter(status='CLOSED_LOST').count()
+        # Lead Statistics - optimized: single aggregation query instead of multiple counts
+        lead_status_counts = Lead.objects.values('status').annotate(
+            count=Count('id')
+        ).values_list('status', 'count')
+        lead_status_dict = dict(lead_status_counts)
+        new_leads = lead_status_dict.get('NEW', 0)
+        contacted_leads = lead_status_dict.get('CONTACTED', 0)
+        qualified_leads = lead_status_dict.get('QUALIFIED', 0)
+        closed_won = lead_status_dict.get('CLOSED_WON', 0)
+        closed_lost = lead_status_dict.get('CLOSED_LOST', 0)
         
         # Monthly Performance
         current_month = timezone.now().replace(day=1)
         monthly_leads = Lead.objects.filter(created_at__gte=current_month).count()
-        monthly_business = Business.objects.filter(
-            created_at__gte=current_month, status='ACTIVE'
-        ).aggregate(total=Sum('value'))['total'] or 0
+        # Successfully converted leads created in current month
+        monthly_business = Lead.objects.filter(
+            status='CLOSED_WON',
+            created_at__gte=current_month
+        ).count()
         
         # Lead Source Distribution
         lead_sources = LeadSource.objects.annotate(
             lead_count=Count('lead')
         ).values('name', 'lead_count')
         
-        # Counsellor Performance
-        counsellor_performance = Counsellor.objects.filter(is_active=True).annotate(
+        # Counsellor Performance - optimized with select_related
+        counsellor_performance = Counsellor.objects.filter(is_active=True).select_related(
+            'admin'
+        ).annotate(
             total_leads=Count('lead'),
             total_business=Sum('business__value'),
             conversion_rate=Case(
@@ -76,24 +87,32 @@ def admin_home(request):
             'CLOSED_LOST': closed_lost
         }
         
-        # Monthly Trend Data (Last 6 months)
+        # Monthly Trend Data (Last 6 months) - optimized with bulk aggregation
         monthly_trend = []
-        for i in range(6):
-            month_start = current_month - timedelta(days=30*i)
-            month_end = month_start + timedelta(days=30)
-            month_leads = Lead.objects.filter(
-                created_at__gte=month_start,
-                created_at__lt=month_end
+        month_starts = [current_month - timedelta(days=30*i) for i in range(6)]
+        month_ends = [start + timedelta(days=30) for start in month_starts]
+        
+        # Bulk query for all months at once
+        from django.db.models import Q
+        monthly_lead_counts = {}
+        monthly_business_totals = {}
+        
+        for i, (start, end) in enumerate(zip(month_starts, month_ends)):
+            monthly_lead_counts[i] = Lead.objects.filter(
+                created_at__gte=start,
+                created_at__lt=end
             ).count()
-            month_business = Business.objects.filter(
-                created_at__gte=month_start,
-                created_at__lt=month_end,
+            monthly_business_totals[i] = Business.objects.filter(
+                created_at__gte=start,
+                created_at__lt=end,
                 status='ACTIVE'
             ).aggregate(total=Sum('value'))['total'] or 0
+        
+        for i, month_start in enumerate(month_starts):
             monthly_trend.append({
                 'month': month_start.strftime('%B %Y'),
-                'leads': month_leads,
-                'business': float(month_business)
+                'leads': monthly_lead_counts[i],
+                'business': float(monthly_business_totals[i])
             })
         
     except Exception as e:
@@ -135,6 +154,28 @@ def admin_home(request):
     return render(request, 'admin_template/home_content.html', context)
 
 
+@admin_required
+def counsellor_activity_progress_report(request):
+    """Per-counsellor pipeline, daily target, and activity metrics (separate from dashboard)."""
+    counsellor_activity_progress = []
+    for c in Counsellor.objects.filter(is_active=True).select_related('admin').order_by(
+        'admin__first_name', 'admin__last_name'
+    ):
+        counsellor_activity_progress.append({
+            'counsellor': c,
+            'progress': get_counsellor_activity_snapshot(c),
+        })
+    return render(
+        request,
+        'admin_template/counsellor_activity_progress.html',
+        {
+            'page_title': 'Counsellor Activity Progress',
+            'counsellor_activity_progress': counsellor_activity_progress,
+        },
+    )
+
+
+@admin_required
 def add_counsellor(request):
     """Add new counsellor"""
     form = CounsellorForm(request.POST or None, request.FILES or None)
@@ -167,6 +208,7 @@ def add_counsellor(request):
     return render(request, 'admin_template/add_counsellor.html', context)
 
 
+@admin_required
 def manage_counsellors(request):
     """Manage all counsellors"""
     counsellors_list = Counsellor.objects.select_related('admin').all().order_by('-joining_date')
@@ -178,6 +220,7 @@ def manage_counsellors(request):
     return render(request, 'admin_template/manage_counsellors.html', context)
 
 
+@admin_required
 def edit_counsellor(request, counsellor_id):
     """Edit counsellor details"""
     counsellor = get_object_or_404(Counsellor, id=counsellor_id)
@@ -213,6 +256,9 @@ def edit_counsellor(request, counsellor_id):
     return render(request, 'admin_template/edit_counsellor.html', context)
 
 
+@admin_required
+@admin_perm_required('delete')
+@require_POST
 def delete_counsellor(request, counsellor_id):
     """Delete counsellor"""
     counsellor = get_object_or_404(Counsellor, id=counsellor_id)
@@ -224,30 +270,215 @@ def delete_counsellor(request, counsellor_id):
     return redirect(reverse('manage_counsellors'))
 
 
+@admin_required
+def add_admin(request):
+    """Add new admin user"""
+    form = AdminForm(request.POST or None, request.FILES or None)
+    context = {'form': form, 'page_title': 'Add Admin User'}
+    if request.method == 'POST':
+        if form.is_valid():
+            try:
+                user = form.save(commit=False)
+                user.user_type = '1'
+                user.is_staff = True
+                user.save()
+
+                admin_profile = Admin.objects.get(admin=user)
+                is_superadmin = request.POST.get('is_superadmin') == 'on'
+                admin_profile.is_superadmin = is_superadmin
+                if not is_superadmin:
+                    admin_profile.can_delete = request.POST.get('can_delete') == 'on'
+                    admin_profile.can_view_performance = request.POST.get('can_view_performance') == 'on'
+                    admin_profile.can_view_counsellor_work = request.POST.get('can_view_counsellor_work') == 'on'
+                    admin_profile.can_manage_settings = request.POST.get('can_manage_settings') == 'on'
+                admin_profile.save()
+
+                messages.success(request, "Admin user added successfully!")
+                return redirect(reverse('manage_admins'))
+            except Exception as e:
+                messages.error(request, f"Could not add admin user: {str(e)}")
+        else:
+            messages.error(request, "Please fill the form properly!")
+    return render(request, 'admin_template/add_admin.html', context)
+
+
+@admin_required
+def manage_admins(request):
+    """Manage all admin users"""
+    # Get all admin users (user_type='1')
+    admins_list = Admin.objects.select_related('admin').all().order_by('-admin__date_joined')
+    # Don't paginate - let DataTables handle it
+    context = {
+        'admins': admins_list,
+        'page_title': 'Manage Admin Users'
+    }
+    return render(request, 'admin_template/manage_admins.html', context)
+
+
+@admin_required
+def edit_admin(request, admin_id):
+    """Edit admin user details"""
+    admin_obj = get_object_or_404(Admin, id=admin_id)
+    form = AdminForm(
+        request.POST or None, 
+        request.FILES or None, 
+        instance=admin_obj
+    )
+    context = {
+        'form': form,
+        'admin_obj': admin_obj,
+        'page_title': 'Edit Admin User'
+    }
+    if request.method == 'POST':
+        if form.is_valid():
+            try:
+                user = form.save()
+
+                is_superadmin = request.POST.get('is_superadmin') == 'on'
+                admin_obj.is_superadmin = is_superadmin
+                if is_superadmin:
+                    admin_obj.can_delete = True
+                    admin_obj.can_view_performance = True
+                    admin_obj.can_view_counsellor_work = True
+                    admin_obj.can_manage_settings = True
+                else:
+                    admin_obj.can_delete = request.POST.get('can_delete') == 'on'
+                    admin_obj.can_view_performance = request.POST.get('can_view_performance') == 'on'
+                    admin_obj.can_view_counsellor_work = request.POST.get('can_view_counsellor_work') == 'on'
+                    admin_obj.can_manage_settings = request.POST.get('can_manage_settings') == 'on'
+                admin_obj.save()
+
+                messages.success(request, "Admin user updated successfully!")
+                return redirect(reverse('manage_admins'))
+            except Exception as e:
+                messages.error(request, f"Could not update admin user: {str(e)}")
+        else:
+            messages.error(request, "Please fill the form properly!")
+    return render(request, 'admin_template/edit_admin.html', context)
+
+
+@admin_required
+@admin_perm_required('delete')
+@require_POST
+def delete_admin(request, admin_id):
+    """Delete admin user"""
+    admin_obj = get_object_or_404(Admin, id=admin_id)
+    # Prevent deleting yourself
+    if admin_obj.admin == request.user:
+        messages.error(request, "You cannot delete your own account!")
+        return redirect(reverse('manage_admins'))
+    try:
+        admin_obj.admin.delete()
+        messages.success(request, "Admin user deleted successfully!")
+    except Exception as e:
+        messages.error(request, f"Could not delete admin user: {str(e)}")
+    return redirect(reverse('manage_admins'))
+
+
+@admin_required
 def manage_leads(request):
-    """Manage all leads"""
+    """Manage all leads with filtering options"""
     leads_list = Lead.objects.select_related('source', 'assigned_counsellor__admin').all().order_by('-created_at')
     
-    # Simple search optimization
-    search_query = request.GET.get('search')
+    # Get filter parameters from GET request
+    search_query = request.GET.get('search', '')
+    status_filter = request.GET.get('status', '')
+    priority_filter = request.GET.get('priority', '')
+    counsellor_filter = request.GET.get('counsellor', '')
+    source_filter = request.GET.get('source', '')
+    
+    # Apply search filter
     if search_query:
-        leads_list = leads_list.filter(
-            Q(first_name__icontains=search_query) |
-            Q(last_name__icontains=search_query) |
-            Q(email__icontains=search_query) |
-            Q(phone__icontains=search_query) |
-            Q(lead_id__icontains=search_query)
-        )
-        
-    leads = paginate_queryset(request, leads_list, 20)
+            leads_list = leads_list.filter(
+                Q(first_name__icontains=search_query) |
+                Q(last_name__icontains=search_query) |
+                Q(email__icontains=search_query) |
+                Q(phone__icontains=search_query) |
+                Q(alternate_phone__icontains=search_query) |
+                Q(lead_id__icontains=search_query)
+            )
+    
+    # Apply status filter
+    if status_filter:
+        leads_list = leads_list.filter(status=status_filter)
+    
+    # Apply priority filter
+    if priority_filter:
+        leads_list = leads_list.filter(priority=priority_filter)
+    
+    # Apply counsellor filter
+    if counsellor_filter:
+        try:
+            counsellor_id = int(counsellor_filter)
+            leads_list = leads_list.filter(assigned_counsellor_id=counsellor_id)
+        except ValueError:
+            pass
+    
+    # Apply source filter
+    if source_filter:
+        try:
+            source_id = int(source_filter)
+            leads_list = leads_list.filter(source_id=source_id)
+        except ValueError:
+            pass
+    
+    # Get filter options for dropdowns
+    all_counsellors = Counsellor.objects.filter(is_active=True).select_related('admin').order_by('admin__first_name')
+    all_sources = LeadSource.objects.filter(is_active=True).order_by('name')
+    
+    # Get filter display names
+    selected_counsellor_name = ''
+    if counsellor_filter:
+        try:
+            counsellor = Counsellor.objects.filter(id=int(counsellor_filter)).select_related('admin').first()
+            if counsellor:
+                selected_counsellor_name = f"{counsellor.admin.first_name} {counsellor.admin.last_name}"
+        except (ValueError, TypeError):
+            pass
+    
+    selected_source_name = ''
+    if source_filter:
+        try:
+            source = LeadSource.objects.filter(id=int(source_filter)).first()
+            if source:
+                selected_source_name = source.name
+        except (ValueError, TypeError):
+            pass
+    
+    # Get status and priority display names
+    status_display = dict(LeadStatus.get_all_choices()).get(status_filter, status_filter) if status_filter else ''
+    priority_display = dict(Lead.PRIORITY).get(priority_filter, priority_filter) if priority_filter else ''
+    
+    # Paginate server-side to keep page load fast even with many leads
+    leads = paginate_queryset(request, leads_list, 50)
+
+    # Preserve current filters in pagination links
+    query_params = request.GET.copy()
+    if 'page' in query_params:
+        del query_params['page']
+    query_string = query_params.urlencode()
     context = {
         'leads': leads,
         'page_title': 'Manage Leads',
-        'search_query': search_query
+        'search_query': search_query,
+        'status_filter': status_filter,
+        'priority_filter': priority_filter,
+        'counsellor_filter': counsellor_filter,
+        'source_filter': source_filter,
+        'status_display': status_display,
+        'priority_display': priority_display,
+        'selected_counsellor_name': selected_counsellor_name,
+        'selected_source_name': selected_source_name,
+        'all_counsellors': all_counsellors,
+        'all_sources': all_sources,
+        'lead_statuses': LeadStatus.get_choices(),
+        'lead_priorities': Lead.PRIORITY,
+        'query_string': query_string,
     }
     return render(request, 'admin_template/manage_leads.html', context)
 
 
+@admin_required
 def add_lead(request):
     """Add new lead manually"""
     form = LeadForm(request.POST or None)
@@ -265,6 +496,7 @@ def add_lead(request):
     return render(request, 'admin_template/add_lead.html', context)
 
 
+@admin_required
 def edit_lead(request, lead_id):
     """Edit lead details"""
     lead = get_object_or_404(Lead, id=lead_id)
@@ -287,6 +519,9 @@ def edit_lead(request, lead_id):
     return render(request, 'admin_template/edit_lead.html', context)
 
 
+@admin_required
+@admin_perm_required('delete')
+@require_POST
 def delete_lead(request, lead_id):
     """Delete lead"""
     lead = get_object_or_404(Lead, id=lead_id)
@@ -298,6 +533,27 @@ def delete_lead(request, lead_id):
     return redirect(reverse('manage_leads'))
 
 
+@admin_required
+@require_POST
+def bulk_delete_leads(request):
+    """Delete multiple leads selected from the manage leads table"""
+    lead_ids = request.POST.getlist('lead_ids')
+    if not lead_ids:
+        messages.warning(request, "No leads selected for deletion.")
+        return redirect(reverse('manage_leads'))
+
+    leads_qs = Lead.objects.filter(id__in=lead_ids)
+    count = leads_qs.count()
+
+    try:
+        leads_qs.delete()
+        messages.success(request, f"Successfully deleted {count} lead(s).")
+    except Exception as e:
+        messages.error(request, f"Could not delete selected leads: {str(e)}")
+
+    return redirect(reverse('manage_leads'))
+
+@admin_required
 def import_leads(request):
     """Import leads from Excel/CSV file with automatic assignment options"""
     form = LeadImportForm(request.POST or None, request.FILES or None)
@@ -311,6 +567,11 @@ def import_leads(request):
                 assigned_counsellor = form.cleaned_data.get('assigned_counsellor')
                 auto_assign = request.POST.get('auto_assign', False)
                 assignment_method = request.POST.get('assignment_method', 'round_robin')
+
+                max_size_mb = getattr(settings, 'MAX_LEAD_IMPORT_MB', 10)
+                if file.size > max_size_mb * 1024 * 1024:
+                    messages.error(request, f"File too large. Max size is {max_size_mb}MB.")
+                    return redirect(reverse('import_leads'))
                 
                 # Read the file
                 if file.name.endswith('.csv'):
@@ -322,6 +583,7 @@ def import_leads(request):
                 error_count = 0
                 imported_leads = []
                 
+                # Process all rows and prepare for bulk creation
                 for index, row in df.iterrows():
                     try:
                         # Create lead from row data
@@ -347,24 +609,25 @@ def import_leads(request):
                         if pd.isna(graduation_year):
                             graduation_year = None
                         
-                        lead_data = {
-                            'first_name': row.get('first_name', ''),
-                            'last_name': row.get('last_name', ''),
-                            'email': row.get('email', ''),
-                            'phone': str(row.get('phone', '')),
-                            'school_name': row.get('School Name', ''),  # Map School Name to school_name field
-                            'graduation_status': graduation_status,
-                            'graduation_course': graduation_course,
-                            'graduation_year': graduation_year,
-                            'graduation_college': graduation_college,
-                            'course_interested': row.get('course_interested', ''),
-                            'industry': row.get('industry', ''),  # Keep for backward compatibility
-                            'source': source,
-                            'assigned_counsellor': assigned_counsellor,
-                            'expected_value': row.get('expected_value', 0),
-                        }
-                        
-                        lead = Lead.objects.create(**lead_data)
+                        # Prepare and save lead object so model save() logic runs (lead_id generation, etc.)
+                        lead = Lead(
+                            first_name=row.get('first_name', ''),
+                            last_name=row.get('last_name', ''),
+                            email=row.get('email', ''),
+                            phone=str(row.get('phone', '')),
+                            alternate_phone=str(row.get('alternate_phone', '')) if row.get('alternate_phone') else '',
+                            school_name=row.get('School Name', ''),  # Map School Name to school_name field
+                            graduation_status=graduation_status,
+                            graduation_course=graduation_course,
+                            graduation_year=graduation_year,
+                            graduation_college=graduation_college,
+                            course_interested=row.get('course_interested', ''),
+                            industry=row.get('industry', ''),  # Keep for backward compatibility
+                            source=source,
+                            assigned_counsellor=assigned_counsellor,
+                        )
+                        # Use model's save() so unique lead_id is generated per row
+                        lead.save()
                         imported_leads.append(lead)
                         success_count += 1
                         
@@ -413,6 +676,7 @@ def import_leads(request):
     return render(request, 'admin_template/import_leads.html', context)
 
 
+@admin_required
 def assign_leads_to_counsellors(request):
     """Automatically assign unassigned leads to counsellors using multiple strategies"""
     if request.method == 'POST':
@@ -509,165 +773,218 @@ def assign_leads_to_counsellors(request):
 def _assign_round_robin(unassigned_leads, active_counsellors):
     """Round-robin assignment - distribute leads evenly"""
     counsellor_list = list(active_counsellors)
-    assigned_count = 0
-    
-    for i, lead in enumerate(unassigned_leads):
-        counsellor = counsellor_list[i % len(counsellor_list)]
-        lead.assigned_counsellor = counsellor
-        lead.save()
-        assigned_count += 1
-    
-    return assigned_count
+    if not counsellor_list:
+        return 0
+
+    leads = list(unassigned_leads)
+    if not leads:
+        return 0
+
+    for i, lead in enumerate(leads):
+        lead.assigned_counsellor = counsellor_list[i % len(counsellor_list)]
+
+    # Single bulk update instead of per-lead saves
+    Lead.objects.bulk_update(leads, ['assigned_counsellor'])
+    return len(leads)
 
 
 def _assign_workload_balanced(unassigned_leads, active_counsellors):
     """Workload-balanced assignment - assign to counsellors with fewer leads"""
-    assigned_count = 0
-    
-    # Get current workload for each counsellor
-    counsellor_workload = {}
+    active_counsellors = list(active_counsellors)
+    if not active_counsellors:
+        return 0
+
+    leads = list(unassigned_leads)
+    if not leads:
+        return 0
+
+    # Get current workload for each counsellor in a single query
+    from django.db.models import Count
+
+    workload_qs = (
+        Lead.objects
+        .filter(assigned_counsellor__in=active_counsellors)
+        .values('assigned_counsellor')
+        .annotate(count=Count('id'))
+    )
+    workload_map = {row['assigned_counsellor']: row['count'] for row in workload_qs}
+
+    counsellor_workload = []
     for counsellor in active_counsellors:
-        lead_count = Lead.objects.filter(assigned_counsellor=counsellor).count()
-        counsellor_workload[counsellor.id] = {
+        counsellor_workload.append({
             'counsellor': counsellor,
-            'lead_count': lead_count
-        }
-    
+            'lead_count': workload_map.get(counsellor.id, 0),
+        })
+
     # Sort counsellors by workload (ascending)
-    sorted_counsellors = sorted(counsellor_workload.values(), key=lambda x: x['lead_count'])
-    
-    for lead in unassigned_leads:
+    counsellor_workload.sort(key=lambda x: x['lead_count'])
+
+    for lead in leads:
         # Assign to counsellor with least workload
-        counsellor = sorted_counsellors[0]['counsellor']
-        lead.assigned_counsellor = counsellor
-        lead.save()
-        
-        # Update workload count
-        sorted_counsellors[0]['lead_count'] += 1
-        
-        # Re-sort to maintain balance
-        sorted_counsellors.sort(key=lambda x: x['lead_count'])
-        assigned_count += 1
-    
-    return assigned_count
+        target = counsellor_workload[0]
+        lead.assigned_counsellor = target['counsellor']
+
+        # Update workload count in memory
+        target['lead_count'] += 1
+        counsellor_workload.sort(key=lambda x: x['lead_count'])
+
+    Lead.objects.bulk_update(leads, ['assigned_counsellor'])
+    return len(leads)
 
 
 def _assign_performance_based(unassigned_leads, active_counsellors):
     """Performance-based assignment - assign to top-performing counsellors"""
-    assigned_count = 0
-    
-    # Calculate performance metrics for each counsellor
-    counsellor_performance = {}
+    active_counsellors = list(active_counsellors)
+    if not active_counsellors:
+        return 0
+
+    leads = list(unassigned_leads)
+    if not leads:
+        return 0
+
+    from django.db.models import Count
+
+    # Aggregate total leads and closed-won per counsellor in as few queries as possible
+    lead_stats = (
+        Lead.objects
+        .filter(assigned_counsellor__in=active_counsellors)
+        .values('assigned_counsellor', 'status')
+        .annotate(count=Count('id'))
+    )
+
+    performance_map = {}
+    for row in lead_stats:
+        cid = row['assigned_counsellor']
+        status = row['status']
+        count = row['count']
+        perf = performance_map.setdefault(cid, {'total': 0, 'won': 0})
+        perf['total'] += count
+        if status == 'CLOSED_WON':
+            perf['won'] += count
+
+    counsellor_performance = []
     for counsellor in active_counsellors:
-        total_leads = Lead.objects.filter(assigned_counsellor=counsellor).count()
-        closed_won = Lead.objects.filter(assigned_counsellor=counsellor, status='CLOSED_WON').count()
-        try:
-            conversion_rate = (closed_won / total_leads * 100) if total_leads > 0 else 0
-        except ZeroDivisionError:
-            conversion_rate = 0
-        
-        counsellor_performance[counsellor.id] = {
+        stats = performance_map.get(counsellor.id, {'total': 0, 'won': 0})
+        total_leads = stats['total']
+        closed_won = stats['won']
+        conversion_rate = (closed_won / total_leads * 100) if total_leads > 0 else 0
+        counsellor_performance.append({
             'counsellor': counsellor,
             'conversion_rate': conversion_rate,
-            'total_leads': total_leads
-        }
-    
+            'total_leads': total_leads,
+        })
+
     # Sort by conversion rate (descending) and then by total leads (ascending)
-    sorted_counsellors = sorted(
-        counsellor_performance.values(),
+    counsellor_performance.sort(
         key=lambda x: (-x['conversion_rate'], x['total_leads'])
     )
-    
-    for lead in unassigned_leads:
+
+    for lead in leads:
         # Assign to top-performing counsellor
-        counsellor = sorted_counsellors[0]['counsellor']
-        lead.assigned_counsellor = counsellor
-        lead.save()
-        
-        # Update lead count
-        sorted_counsellors[0]['total_leads'] += 1
-        
-        # Re-sort to maintain performance-based order
-        sorted_counsellors.sort(key=lambda x: (-x['conversion_rate'], x['total_leads']))
-        assigned_count += 1
-    
-    return assigned_count
+        target = counsellor_performance[0]
+        lead.assigned_counsellor = target['counsellor']
+
+        # Update lead count in memory and re-sort
+        target['total_leads'] += 1
+        counsellor_performance.sort(
+            key=lambda x: (-x['conversion_rate'], x['total_leads'])
+        )
+
+    Lead.objects.bulk_update(leads, ['assigned_counsellor'])
+    return len(leads)
 
 
 def _assign_specialization_based(unassigned_leads, active_counsellors):
     """Specialization-based assignment - assign based on counsellor expertise"""
-    assigned_count = 0
-    
+    active_counsellors = list(active_counsellors)
+    if not active_counsellors:
+        return 0
+
+    leads = list(unassigned_leads)
+    if not leads:
+        return 0
+
     # Get counsellor specializations (based on department and past performance)
     counsellor_specializations = {}
+
+    # Prefetch all leads for the active counsellors in a single query
+    counsellor_leads_qs = Lead.objects.filter(
+        assigned_counsellor__in=active_counsellors
+    ).select_related('source')
+
+    leads_by_counsellor = {}
+    for lead in counsellor_leads_qs:
+        leads_by_counsellor.setdefault(lead.assigned_counsellor_id, []).append(lead)
+
     for counsellor in active_counsellors:
-        # Get counsellor's success rate by industry/source
         industry_success = {}
         source_success = {}
-        
-        counsellor_leads = Lead.objects.filter(assigned_counsellor=counsellor)
-        for lead in counsellor_leads:
-            if lead.industry:
-                if lead.industry not in industry_success:
-                    industry_success[lead.industry] = {'total': 0, 'won': 0}
-                industry_success[lead.industry]['total'] += 1
-                if lead.status == 'CLOSED_WON':
-                    industry_success[lead.industry]['won'] += 1
-            
-            if lead.source:
-                if lead.source.id not in source_success:
-                    source_success[lead.source.id] = {'total': 0, 'won': 0}
-                source_success[lead.source.id]['total'] += 1
-                if lead.status == 'CLOSED_WON':
-                    source_success[lead.source.id]['won'] += 1
-        
+        clist = leads_by_counsellor.get(counsellor.id, [])
+
+        for l in clist:
+            if l.industry:
+                stats = industry_success.setdefault(
+                    l.industry, {'total': 0, 'won': 0}
+                )
+                stats['total'] += 1
+                if l.status == 'CLOSED_WON':
+                    stats['won'] += 1
+
+            if l.source:
+                stats = source_success.setdefault(
+                    l.source_id, {'total': 0, 'won': 0}
+                )
+                stats['total'] += 1
+                if l.status == 'CLOSED_WON':
+                    stats['won'] += 1
+
         counsellor_specializations[counsellor.id] = {
             'counsellor': counsellor,
             'industry_success': industry_success,
             'source_success': source_success,
-            'current_workload': counsellor_leads.count()
+            'current_workload': len(clist),
         }
-    
-    for lead in unassigned_leads:
+
+    for lead in leads:
         best_counsellor = None
         best_score = -1
-        
+
         for counsellor_data in counsellor_specializations.values():
             score = 0
-            
-            # Graduation Status expertise bonus
+
+            # Industry expertise bonus
             if lead.industry and lead.industry in counsellor_data['industry_success']:
-                success_rate = counsellor_data['industry_success'][lead.industry]['won'] / counsellor_data['industry_success'][lead.industry]['total']
+                stats = counsellor_data['industry_success'][lead.industry]
+                success_rate = stats['won'] / stats['total'] if stats['total'] else 0
                 score += success_rate * 100
-            
+
             # Source expertise bonus
             if lead.source and lead.source.id in counsellor_data['source_success']:
-                success_rate = counsellor_data['source_success'][lead.source.id]['won'] / counsellor_data['source_success'][lead.source.id]['total']
+                stats = counsellor_data['source_success'][lead.source.id]
+                success_rate = stats['won'] / stats['total'] if stats['total'] else 0
                 score += success_rate * 50
-            
+
             # Workload penalty (prefer counsellors with fewer leads)
             workload_penalty = counsellor_data['current_workload'] * 2
             score -= workload_penalty
-            
+
             if score > best_score:
                 best_score = score
                 best_counsellor = counsellor_data['counsellor']
-        
+
         if best_counsellor:
             lead.assigned_counsellor = best_counsellor
-            lead.save()
-            
-            # Update workload
-            for counsellor_data in counsellor_specializations.values():
-                if counsellor_data['counsellor'] == best_counsellor:
-                    counsellor_data['current_workload'] += 1
-                    break
-            
-            assigned_count += 1
-    
-    return assigned_count
+            # Update workload in memory
+            data = counsellor_specializations.get(best_counsellor.id)
+            if data:
+                data['current_workload'] += 1
+
+    # Persist all assignments in a single bulk update
+    Lead.objects.bulk_update(leads, ['assigned_counsellor'])
+    return len(leads)
 
 
+@admin_required
 def transfer_lead(request, lead_id):
     """Transfer lead to another counsellor"""
     lead = get_object_or_404(Lead, id=lead_id)
@@ -706,6 +1023,8 @@ def transfer_lead(request, lead_id):
     return render(request, 'admin_template/transfer_lead.html', context)
 
 
+@admin_required
+@admin_perm_required('settings')
 def manage_lead_sources(request):
     """Manage lead sources"""
     sources = LeadSource.objects.all().prefetch_related('lead_set')
@@ -716,6 +1035,8 @@ def manage_lead_sources(request):
     return render(request, 'admin_template/manage_lead_sources.html', context)
 
 
+@admin_required
+@admin_perm_required('settings')
 def add_lead_source(request):
     """Add new lead source"""
     form = LeadSourceForm(request.POST or None)
@@ -733,6 +1054,8 @@ def add_lead_source(request):
     return render(request, 'admin_template/add_lead_source.html', context)
 
 
+@admin_required
+@admin_perm_required('settings')
 def edit_lead_source(request, source_id):
     """Edit lead source"""
     lead_source = get_object_or_404(LeadSource, id=source_id)
@@ -751,6 +1074,9 @@ def edit_lead_source(request, source_id):
     return render(request, 'admin_template/edit_lead_source.html', context)
 
 
+@admin_required
+@admin_perm_required('delete')
+@require_POST
 def delete_lead_source(request, source_id):
     """Delete lead source"""
     lead_source = get_object_or_404(LeadSource, id=source_id)
@@ -762,6 +1088,330 @@ def delete_lead_source(request, source_id):
     return redirect(reverse('manage_lead_sources'))
 
 
+# ── Lead Status CRUD (mirrors Lead Source) ──────────────────────────────
+
+@admin_required
+@admin_perm_required('settings')
+def manage_lead_statuses(request):
+    """List all lead statuses with lead counts."""
+    from django.db.models import Count, Value, IntegerField
+    from django.db.models.functions import Coalesce
+
+    statuses = LeadStatus.objects.all().order_by('sort_order', 'name')
+    # Annotate each status with the number of leads using that code
+    status_lead_counts = {}
+    for row in Lead.objects.values('status').annotate(count=Count('id')):
+        status_lead_counts[row['status']] = row['count']
+    for status in statuses:
+        status.lead_count = status_lead_counts.get(status.code, 0)
+
+    context = {
+        'statuses': statuses,
+        'page_title': 'Manage Lead Statuses',
+    }
+    return render(request, 'admin_template/manage_lead_statuses.html', context)
+
+
+@admin_required
+@admin_perm_required('settings')
+def add_lead_status(request):
+    """Add a new lead status."""
+    from .forms import LeadStatusForm
+    form = LeadStatusForm(request.POST or None)
+    context = {'form': form, 'page_title': 'Add Lead Status'}
+    if request.method == 'POST':
+        if form.is_valid():
+            try:
+                status = form.save(commit=False)
+                status.code = status.code.upper().replace(' ', '_')
+                status.save()
+                messages.success(request, "Lead status added successfully!")
+                return redirect(reverse('manage_lead_statuses'))
+            except Exception as e:
+                messages.error(request, f"Could not add lead status: {str(e)}")
+        else:
+            messages.error(request, "Please fill the form properly!")
+    return render(request, 'admin_template/add_lead_status.html', context)
+
+
+@admin_required
+@admin_perm_required('settings')
+def edit_lead_status(request, status_id):
+    """Edit an existing lead status."""
+    from .forms import LeadStatusForm
+    lead_status = get_object_or_404(LeadStatus, id=status_id)
+    form = LeadStatusForm(request.POST or None, instance=lead_status)
+    context = {'form': form, 'lead_status': lead_status, 'page_title': 'Edit Lead Status'}
+    if request.method == 'POST':
+        if form.is_valid():
+            try:
+                status = form.save(commit=False)
+                status.code = status.code.upper().replace(' ', '_')
+                status.save()
+                messages.success(request, "Lead status updated successfully!")
+                return redirect(reverse('manage_lead_statuses'))
+            except Exception as e:
+                messages.error(request, f"Could not update lead status: {str(e)}")
+        else:
+            messages.error(request, "Please fill the form properly!")
+    return render(request, 'admin_template/edit_lead_status.html', context)
+
+
+@admin_required
+@admin_perm_required('delete')
+@require_POST
+def delete_lead_status(request, status_id):
+    """Delete a lead status (system statuses are protected)."""
+    lead_status = get_object_or_404(LeadStatus, id=status_id)
+    if lead_status.is_system:
+        messages.error(request, f"Cannot delete system status '{lead_status.name}'. You can deactivate it instead.")
+        return redirect(reverse('manage_lead_statuses'))
+    lead_count = Lead.objects.filter(status=lead_status.code).count()
+    if lead_count > 0:
+        messages.error(request, f"Cannot delete '{lead_status.name}' — {lead_count} lead(s) are using this status. Reassign them first.")
+        return redirect(reverse('manage_lead_statuses'))
+    try:
+        lead_status.delete()
+        messages.success(request, "Lead status deleted successfully!")
+    except Exception as e:
+        messages.error(request, f"Could not delete lead status: {str(e)}")
+    return redirect(reverse('manage_lead_statuses'))
+
+
+# ── Activity Type CRUD ──────────────────────────────────────────────────
+
+@admin_required
+@admin_perm_required('settings')
+def manage_activity_types(request):
+    from django.db.models import Count
+    types = ActivityType.objects.all().order_by('sort_order', 'name')
+    type_counts = {}
+    for row in LeadActivity.objects.values('activity_type').annotate(count=Count('id')):
+        type_counts[row['activity_type']] = row['count']
+    for t in types:
+        t.activity_count = type_counts.get(t.code, 0)
+    context = {'activity_types': types, 'page_title': 'Manage Activity Types'}
+    return render(request, 'admin_template/manage_activity_types.html', context)
+
+
+@admin_required
+@admin_perm_required('settings')
+def add_activity_type(request):
+    from .forms import ActivityTypeForm
+    form = ActivityTypeForm(request.POST or None)
+    context = {'form': form, 'page_title': 'Add Activity Type'}
+    if request.method == 'POST':
+        if form.is_valid():
+            try:
+                obj = form.save(commit=False)
+                obj.code = obj.code.upper().replace(' ', '_')
+                obj.save()
+                messages.success(request, "Activity type added successfully!")
+                return redirect(reverse('manage_activity_types'))
+            except Exception as e:
+                messages.error(request, f"Could not add activity type: {str(e)}")
+        else:
+            messages.error(request, "Please fill the form properly!")
+    return render(request, 'admin_template/add_activity_type.html', context)
+
+
+@admin_required
+@admin_perm_required('settings')
+def edit_activity_type(request, type_id):
+    from .forms import ActivityTypeForm
+    activity_type = get_object_or_404(ActivityType, id=type_id)
+    form = ActivityTypeForm(request.POST or None, instance=activity_type)
+    context = {'form': form, 'activity_type': activity_type, 'page_title': 'Edit Activity Type'}
+    if request.method == 'POST':
+        if form.is_valid():
+            try:
+                obj = form.save(commit=False)
+                obj.code = obj.code.upper().replace(' ', '_')
+                obj.save()
+                messages.success(request, "Activity type updated successfully!")
+                return redirect(reverse('manage_activity_types'))
+            except Exception as e:
+                messages.error(request, f"Could not update activity type: {str(e)}")
+        else:
+            messages.error(request, "Please fill the form properly!")
+    return render(request, 'admin_template/edit_activity_type.html', context)
+
+
+@admin_required
+@admin_perm_required('delete')
+@require_POST
+def delete_activity_type(request, type_id):
+    activity_type = get_object_or_404(ActivityType, id=type_id)
+    if activity_type.is_system:
+        messages.error(request, f"Cannot delete system activity type '{activity_type.name}'. You can deactivate it instead.")
+        return redirect(reverse('manage_activity_types'))
+    count = LeadActivity.objects.filter(activity_type=activity_type.code).count()
+    if count > 0:
+        messages.error(request, f"Cannot delete '{activity_type.name}' — {count} activities use this type.")
+        return redirect(reverse('manage_activity_types'))
+    try:
+        activity_type.delete()
+        messages.success(request, "Activity type deleted successfully!")
+    except Exception as e:
+        messages.error(request, f"Could not delete activity type: {str(e)}")
+    return redirect(reverse('manage_activity_types'))
+
+
+# ── Next Action CRUD ────────────────────────────────────────────────────
+
+@admin_required
+@admin_perm_required('settings')
+def manage_next_actions(request):
+    from django.db.models import Count
+    actions = NextAction.objects.all().order_by('sort_order', 'name')
+    action_counts = {}
+    for row in LeadActivity.objects.exclude(next_action='').values('next_action').annotate(count=Count('id')):
+        action_counts[row['next_action']] = row['count']
+    for a in actions:
+        a.usage_count = action_counts.get(a.code, 0)
+    context = {'next_actions': actions, 'page_title': 'Manage Next Actions'}
+    return render(request, 'admin_template/manage_next_actions.html', context)
+
+
+@admin_required
+@admin_perm_required('settings')
+def add_next_action(request):
+    from .forms import NextActionForm
+    form = NextActionForm(request.POST or None)
+    context = {'form': form, 'page_title': 'Add Next Action'}
+    if request.method == 'POST':
+        if form.is_valid():
+            try:
+                obj = form.save(commit=False)
+                obj.code = obj.code.upper().replace(' ', '_')
+                obj.save()
+                messages.success(request, "Next action added successfully!")
+                return redirect(reverse('manage_next_actions'))
+            except Exception as e:
+                messages.error(request, f"Could not add next action: {str(e)}")
+        else:
+            messages.error(request, "Please fill the form properly!")
+    return render(request, 'admin_template/add_next_action.html', context)
+
+
+@admin_required
+@admin_perm_required('settings')
+def edit_next_action(request, action_id):
+    from .forms import NextActionForm
+    action = get_object_or_404(NextAction, id=action_id)
+    form = NextActionForm(request.POST or None, instance=action)
+    context = {'form': form, 'next_action': action, 'page_title': 'Edit Next Action'}
+    if request.method == 'POST':
+        if form.is_valid():
+            try:
+                obj = form.save(commit=False)
+                obj.code = obj.code.upper().replace(' ', '_')
+                obj.save()
+                messages.success(request, "Next action updated successfully!")
+                return redirect(reverse('manage_next_actions'))
+            except Exception as e:
+                messages.error(request, f"Could not update next action: {str(e)}")
+        else:
+            messages.error(request, "Please fill the form properly!")
+    return render(request, 'admin_template/edit_next_action.html', context)
+
+
+@admin_required
+@admin_perm_required('delete')
+@require_POST
+def delete_next_action(request, action_id):
+    action = get_object_or_404(NextAction, id=action_id)
+    if action.is_system:
+        messages.error(request, f"Cannot delete system action '{action.name}'. You can deactivate it instead.")
+        return redirect(reverse('manage_next_actions'))
+    count = LeadActivity.objects.filter(next_action=action.code).count()
+    if count > 0:
+        messages.error(request, f"Cannot delete '{action.name}' — {count} activities use this action.")
+        return redirect(reverse('manage_next_actions'))
+    try:
+        action.delete()
+        messages.success(request, "Next action deleted successfully!")
+    except Exception as e:
+        messages.error(request, f"Could not delete next action: {str(e)}")
+    return redirect(reverse('manage_next_actions'))
+
+
+# ── Daily Targets (simple) ───────────────────────────────────────────────
+
+@admin_required
+def manage_daily_targets(request):
+    """List all daily targets."""
+    targets = (
+        DailyTarget.objects
+        .select_related('created_by')
+        .prefetch_related('assignments__counsellor__admin')
+        .order_by('-target_date')
+    )
+    context = {'targets': targets, 'page_title': 'Daily Targets'}
+    return render(request, 'admin_template/manage_daily_targets.html', context)
+
+
+@admin_required
+def create_daily_target(request):
+    """Admin enters a number + date → assign to all / selected counsellors."""
+    from .forms import DailyTargetForm
+    form = DailyTargetForm(request.POST or None)
+    context = {'form': form, 'page_title': 'Set Daily Target'}
+
+    if request.method == 'POST' and form.is_valid():
+        try:
+            target = DailyTarget.objects.create(
+                target_date=form.cleaned_data['target_date'],
+                target_count=form.cleaned_data['target_count'],
+                created_by=request.user,
+            )
+            if form.cleaned_data['assign_mode'] == 'all':
+                counsellors = Counsellor.objects.filter(is_active=True)
+            else:
+                counsellors = form.cleaned_data.get('counsellors', Counsellor.objects.none())
+
+            for c in counsellors:
+                DailyTargetAssignment.objects.get_or_create(target=target, counsellor=c)
+
+            messages.success(request, f"Target of {target.target_count} tasks set for {counsellors.count()} counsellor(s) on {target.target_date}!")
+            return redirect(reverse('manage_daily_targets'))
+        except Exception as e:
+            messages.error(request, f"Error: {str(e)}")
+
+    return render(request, 'admin_template/create_daily_target.html', context)
+
+
+@admin_required
+@require_POST
+def update_daily_target(request, target_id):
+    """Admin updates the task count for an existing target."""
+    target = get_object_or_404(DailyTarget, id=target_id)
+    try:
+        new_count = int(request.POST.get('target_count', target.target_count))
+        if new_count < 1:
+            raise ValueError("Must be at least 1")
+        target.target_count = new_count
+        target.save()
+        messages.success(request, f"Target updated to {new_count} tasks for {target.target_date}.")
+    except (ValueError, TypeError) as e:
+        messages.error(request, f"Invalid value: {e}")
+    return redirect(reverse('manage_daily_targets'))
+
+
+@admin_required
+@admin_perm_required('delete')
+@require_POST
+def delete_daily_target(request, target_id):
+    target = get_object_or_404(DailyTarget, id=target_id)
+    try:
+        target.delete()
+        messages.success(request, "Daily target deleted.")
+    except Exception as e:
+        messages.error(request, f"Could not delete: {str(e)}")
+    return redirect(reverse('manage_daily_targets'))
+
+
+@admin_required
 def manage_businesses(request):
     """Manage all businesses"""
     businesses_list = Business.objects.select_related('lead', 'counsellor__admin').all().order_by('-created_at')
@@ -773,6 +1423,8 @@ def manage_businesses(request):
     return render(request, 'admin_template/manage_businesses.html', context)
 
 
+@admin_required
+@admin_perm_required('performance')
 def counsellor_performance(request):
     """View counsellor performance analytics"""
     counsellors = Counsellor.objects.filter(is_active=True)
@@ -789,9 +1441,11 @@ def counsellor_performance(request):
         if not monthly_performance:
             # Calculate performance if not exists
             monthly_leads = counsellor.lead_set.filter(created_at__gte=current_month).count()
-            monthly_business = counsellor.business_set.filter(
-                created_at__gte=current_month, status='ACTIVE'
-            ).aggregate(total=Sum('value'))['total'] or 0
+            # Monthly successfully converted leads for this counsellor
+            monthly_business = counsellor.lead_set.filter(
+                status='CLOSED_WON',
+                created_at__gte=current_month
+            ).count()
             
             try:
                 conversion_rate = monthly_business / monthly_leads * 100 if monthly_leads > 0 else 0
@@ -818,6 +1472,7 @@ def counsellor_performance(request):
     return render(request, 'admin_template/counsellor_performance.html', context)
 
 
+@admin_required
 def send_counsellor_notification(request):
     """Send notification to counsellors"""
     form = NotificationCounsellorForm(request.POST or None)
@@ -835,6 +1490,7 @@ def send_counsellor_notification(request):
     return render(request, 'admin_template/send_counsellor_notification.html', context)
 
 
+@admin_required
 def admin_view_profile(request):
     """Admin profile view"""
     admin = get_object_or_404(Admin, admin=request.user)
@@ -845,9 +1501,10 @@ def admin_view_profile(request):
     return render(request, 'admin_template/admin_view_profile.html', context)
 
 
+@admin_required
 def admin_view_notifications(request):
     """View admin notifications"""
-    notifications = NotificationAdmin.objects.all().order_by('-created_at')
+    notifications = NotificationAdmin.objects.filter(admin=request.user).order_by('-created_at')
     context = {
         'notifications': notifications,
         'page_title': 'Notifications'
@@ -855,6 +1512,7 @@ def admin_view_notifications(request):
     return render(request, 'admin_template/admin_view_notifications.html', context)
 
 
+@admin_required
 def get_lead_analytics(request):
     """AJAX endpoint for lead analytics"""
     if request.method == 'GET':
@@ -889,7 +1547,7 @@ def get_lead_analytics(request):
     return JsonResponse({'error': 'Invalid request'}, status=400)
 
 
-@login_required(login_url='login')
+@admin_required
 def download_import_template(request, file_type):
     """Download sample import template files"""
     import os
@@ -915,7 +1573,7 @@ def download_import_template(request, file_type):
         return HttpResponse('Template file not found', status=404)
 
 
-@login_required(login_url='login')
+@admin_required
 def admin_view_lead(request, lead_id):
     """Admin view to display detailed lead information"""
     try:
@@ -941,7 +1599,7 @@ def admin_view_lead(request, lead_id):
         return redirect('manage_leads')
 
 
-@login_required(login_url='login')
+@admin_required
 def admin_run_ai_workflow(request, lead_id):
     """Admin view to run AI workflow for a lead"""
     try:
@@ -978,7 +1636,7 @@ def admin_run_ai_workflow(request, lead_id):
 
 
 
-@login_required(login_url='login')
+@admin_required
 def manual_route_student(request, lead_id):
     """Manual routing of student to different academic departments"""
     if request.method == 'POST':
@@ -1012,3 +1670,272 @@ def manual_route_student(request, lead_id):
             messages.error(request, f'Error in manual routing: {str(e)}')
     
     return redirect('admin_view_lead', lead_id=lead_id)
+
+
+@admin_required
+def get_admin_calendar_events(request):
+    """API endpoint to get calendar events for all leads (admin view)"""
+    # Get date range from request (optional)
+    start_date_str = request.GET.get('start')
+    end_date_str = request.GET.get('end')
+    
+    events = []
+    
+    # Parse dates if provided
+    start_date = None
+    end_date = None
+    if start_date_str:
+        try:
+            start_date = datetime.fromisoformat(start_date_str.replace('Z', '+00:00'))
+            if timezone.is_naive(start_date):
+                start_date = timezone.make_aware(start_date)
+        except (ValueError, AttributeError):
+            pass
+    
+    if end_date_str:
+        try:
+            end_date = datetime.fromisoformat(end_date_str.replace('Z', '+00:00'))
+            if timezone.is_naive(end_date):
+                end_date = timezone.make_aware(end_date)
+        except (ValueError, AttributeError):
+            pass
+    
+    # Get scheduled activities for all leads
+    activities_query = LeadActivity.objects.filter(
+        scheduled_date__isnull=False
+    ).select_related('lead', 'counsellor__admin')
+    
+    if start_date and end_date:
+        activities_query = activities_query.filter(
+            scheduled_date__gte=start_date,
+            scheduled_date__lte=end_date
+        )
+    
+    for activity in activities_query:
+        if activity.scheduled_date:
+            start_iso = activity.scheduled_date.isoformat()
+            end_iso = None
+            if activity.duration:
+                end_time = activity.scheduled_date + timedelta(minutes=activity.duration)
+                end_iso = end_time.isoformat()
+            else:
+                end_time = activity.scheduled_date + timedelta(hours=1)
+                end_iso = end_time.isoformat()
+            
+            activity_type_display = dict(ActivityType.get_all_choices()).get(activity.activity_type, activity.activity_type)
+            counsellor_name = f"{activity.counsellor.admin.first_name} {activity.counsellor.admin.last_name}" if activity.counsellor else "Unassigned"
+            
+            events.append({
+                'id': f'activity_{activity.id}',
+                'title': f"{activity_type_display}: {activity.lead.first_name} {activity.lead.last_name}",
+                'start': start_iso,
+                'end': end_iso,
+                'color': '#007bff',  # Blue for activities
+                'textColor': '#ffffff',
+                'extendedProps': {
+                    'type': 'activity',
+                    'lead_name': f"{activity.lead.first_name} {activity.lead.last_name}",
+                    'counsellor_name': counsellor_name,
+                    'description': activity.description or 'No description',
+                    'activity_id': activity.id,
+                    'lead_id': activity.lead.id,
+                }
+            })
+    
+    # Get follow-ups from all leads
+    followups_query = Lead.objects.filter(
+        next_follow_up__isnull=False
+    ).select_related('source', 'assigned_counsellor__admin')
+    
+    if start_date and end_date:
+        followups_query = followups_query.filter(
+            next_follow_up__gte=start_date,
+            next_follow_up__lte=end_date
+        )
+    
+    for lead in followups_query:
+        if lead.next_follow_up:
+            followup_date = lead.next_follow_up.date()
+            counsellor_name = f"{lead.assigned_counsellor.admin.first_name} {lead.assigned_counsellor.admin.last_name}" if lead.assigned_counsellor else "Unassigned"
+            
+            events.append({
+                'id': f'followup_{lead.id}',
+                'title': f"Follow-up: {lead.first_name} {lead.last_name}",
+                'start': followup_date.isoformat(),
+                'allDay': True,
+                'color': '#28a745',  # Green for follow-ups
+                'textColor': '#ffffff',
+                'extendedProps': {
+                    'type': 'followup',
+                    'lead_name': f"{lead.first_name} {lead.last_name}",
+                    'counsellor_name': counsellor_name,
+                    'lead_id': lead.id,
+                    'course_interested': lead.course_interested or 'N/A',
+                    'school_name': lead.school_name or 'N/A',
+                }
+            })
+    
+    return JsonResponse(events, safe=False)
+
+
+@admin_required
+@admin_perm_required('counsellor_work')
+def counsellor_work_view(request):
+    """Admin view: counsellor activities and visit dates with rich filters."""
+    import pytz
+    from django.conf import settings as dj_settings
+
+    counsellor_id = request.GET.get('counsellor', '').strip()
+    date_from_str = request.GET.get('date_from', '').strip()
+    date_to_str = request.GET.get('date_to', '').strip()
+    legacy_date = request.GET.get('selected_date', '').strip()
+    if not date_from_str and legacy_date:
+        date_from_str = legacy_date
+    if not date_to_str and legacy_date:
+        date_to_str = legacy_date
+
+    activity_type_f = request.GET.get('activity_type', '').strip()
+    activity_status = request.GET.get('activity_status', '').strip()
+    lead_status_f = request.GET.get('lead_status', '').strip()
+    lead_source_f = request.GET.get('lead_source', '').strip()
+    lead_priority_f = request.GET.get('lead_priority', '').strip()
+
+    today = timezone.localtime(timezone.now()).date()
+    if not date_from_str:
+        date_from_str = today.strftime('%Y-%m-%d')
+    if not date_to_str:
+        date_to_str = date_from_str
+
+    try:
+        date_from = datetime.strptime(date_from_str, '%Y-%m-%d').date()
+    except ValueError:
+        date_from = today
+        date_from_str = today.strftime('%Y-%m-%d')
+    try:
+        date_to = datetime.strptime(date_to_str, '%Y-%m-%d').date()
+    except ValueError:
+        date_to = date_from
+        date_to_str = date_from_str
+    if date_to < date_from:
+        date_to = date_from
+        date_to_str = date_from_str
+
+    tz_obj = pytz.timezone(dj_settings.TIME_ZONE)
+    range_start = tz_obj.localize(datetime.combine(date_from, datetime.min.time()))
+    range_end = tz_obj.localize(datetime.combine(date_to, datetime.max.time().replace(microsecond=999999)))
+
+    all_counsellors = Counsellor.objects.filter(is_active=True).select_related('admin').order_by('admin__first_name')
+
+    activities_query = LeadActivity.objects.all().select_related(
+        'lead', 'lead__source', 'counsellor__admin'
+    ).order_by('-scheduled_date', '-completed_date')
+
+    followups_query = Lead.objects.filter(next_follow_up__isnull=False).select_related(
+        'assigned_counsellor__admin', 'source'
+    ).order_by('next_follow_up')
+
+    selected_counsellor = None
+    if counsellor_id:
+        try:
+            selected_counsellor = Counsellor.objects.get(id=int(counsellor_id), is_active=True)
+            activities_query = activities_query.filter(counsellor=selected_counsellor)
+            followups_query = followups_query.filter(assigned_counsellor=selected_counsellor)
+        except (ValueError, Counsellor.DoesNotExist):
+            selected_counsellor = None
+
+    activities_query = activities_query.filter(
+        Q(scheduled_date__gte=range_start, scheduled_date__lte=range_end) |
+        Q(completed_date__gte=range_start, completed_date__lte=range_end)
+    )
+
+    followups_query = followups_query.filter(
+        next_follow_up__gte=range_start,
+        next_follow_up__lte=range_end,
+    )
+
+    if activity_type_f:
+        activities_query = activities_query.filter(activity_type=activity_type_f)
+    if activity_status == 'completed':
+        activities_query = activities_query.filter(is_completed=True)
+    elif activity_status == 'pending':
+        activities_query = activities_query.filter(is_completed=False)
+
+    if lead_status_f:
+        activities_query = activities_query.filter(lead__status=lead_status_f)
+        followups_query = followups_query.filter(status=lead_status_f)
+
+    if lead_source_f:
+        try:
+            sid = int(lead_source_f)
+            activities_query = activities_query.filter(lead__source_id=sid)
+            followups_query = followups_query.filter(source_id=sid)
+        except ValueError:
+            pass
+
+    if lead_priority_f:
+        activities_query = activities_query.filter(lead__priority=lead_priority_f)
+        followups_query = followups_query.filter(priority=lead_priority_f)
+
+    total_activities = activities_query.count()
+    completed_activities = activities_query.filter(is_completed=True).count()
+    pending_activities = activities_query.filter(is_completed=False).count()
+    total_followups = followups_query.count()
+
+    activities = paginate_queryset(request, activities_query, 50)
+    followups = followups_query[:100]
+
+    filter_params = request.GET.copy()
+    filter_params.pop('page', None)
+    filter_query = filter_params.urlencode()
+
+    selected_source_name = ''
+    if lead_source_f:
+        try:
+            src = LeadSource.objects.filter(pk=int(lead_source_f)).first()
+            if src:
+                selected_source_name = src.name
+        except ValueError:
+            pass
+
+    lead_sources = LeadSource.objects.filter(is_active=True).order_by('name')
+    try:
+        activity_type_choices = ActivityType.get_choices()
+    except Exception:
+        activity_type_choices = []
+    if not activity_type_choices:
+        activity_type_choices = list(LeadActivity.ACTIVITY_TYPE)
+    try:
+        lead_status_choices = LeadStatus.get_choices()
+    except Exception:
+        lead_status_choices = []
+    if not lead_status_choices:
+        lead_status_choices = list(Lead.LEAD_STATUS)
+
+    context = {
+        'page_title': 'Counsellor Work View',
+        'activities': activities,
+        'followups': followups,
+        'all_counsellors': all_counsellors,
+        'selected_counsellor': selected_counsellor,
+        'counsellor_id': counsellor_id,
+        'date_from': date_from_str,
+        'date_to': date_to_str,
+        'activity_type_f': activity_type_f,
+        'activity_status': activity_status,
+        'lead_status_f': lead_status_f,
+        'lead_source_f': lead_source_f,
+        'lead_priority_f': lead_priority_f,
+        'lead_sources': lead_sources,
+        'activity_type_choices': activity_type_choices,
+        'lead_status_choices': lead_status_choices,
+        'lead_priority_choices': Lead.PRIORITY,
+        'total_activities': total_activities,
+        'completed_activities': completed_activities,
+        'pending_activities': pending_activities,
+        'total_followups': total_followups,
+        'filter_query': filter_query,
+        'selected_source_name': selected_source_name,
+    }
+    return render(request, 'admin_template/counsellor_work_view.html', context)
+
+    

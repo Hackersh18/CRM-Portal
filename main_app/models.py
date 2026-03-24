@@ -25,6 +25,12 @@ class CustomUserManager(UserManager):
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
+        # CRM Admin profile + permissions use user_type '1' (see ensure_admin_profile).
+        extra_fields.setdefault("user_type", "1")
+        extra_fields.setdefault("gender", "M")
+        extra_fields.setdefault("address", "")
+        extra_fields.setdefault("first_name", "")
+        extra_fields.setdefault("last_name", "")
 
         assert extra_fields["is_staff"]
         assert extra_fields["is_superuser"]
@@ -55,9 +61,26 @@ class CustomUser(AbstractUser):
 
 class Admin(models.Model):
     admin = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
+    is_superadmin = models.BooleanField(default=True, help_text="Full access to everything")
+    can_delete = models.BooleanField(default=True, help_text="Can delete leads, activities, etc.")
+    can_view_performance = models.BooleanField(default=True, help_text="Can view counsellor performance")
+    can_view_counsellor_work = models.BooleanField(default=True, help_text="Can view counsellor work details")
+    can_manage_settings = models.BooleanField(default=True, help_text="Can manage lead sources, statuses, activity types, etc.")
 
     def __str__(self):
         return self.admin.first_name + " " + self.admin.last_name
+
+    def has_perm_delete(self):
+        return self.is_superadmin or self.can_delete
+
+    def has_perm_performance(self):
+        return self.is_superadmin or self.can_view_performance
+
+    def has_perm_counsellor_work(self):
+        return self.is_superadmin or self.can_view_counsellor_work
+
+    def has_perm_settings(self):
+        return self.is_superadmin or self.can_manage_settings
 
 
 class Counsellor(models.Model):
@@ -84,17 +107,50 @@ class LeadSource(models.Model):
         return self.name
 
 
+class LeadStatus(models.Model):
+    """Configurable lead statuses managed from admin panel (like LeadSource)."""
+    code = models.CharField(max_length=30, unique=True, help_text="Internal code e.g. NEW, CONTACTED")
+    name = models.CharField(max_length=100, help_text="Display name e.g. 'New', 'Contacted'")
+    description = models.TextField(blank=True)
+    color = models.CharField(max_length=20, default='secondary', help_text="Bootstrap badge color class e.g. info, success, danger")
+    is_active = models.BooleanField(default=True)
+    is_system = models.BooleanField(default=False, help_text="System statuses cannot be deleted")
+    sort_order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+        verbose_name_plural = 'Lead Statuses'
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def get_choices(cls):
+        """Return list of (code, name) tuples for form/model choices, active only."""
+        return list(cls.objects.filter(is_active=True).order_by('sort_order', 'name').values_list('code', 'name'))
+
+    @classmethod
+    def get_all_choices(cls):
+        """Return all (code, name) tuples including inactive, for display purposes."""
+        return list(cls.objects.order_by('sort_order', 'name').values_list('code', 'name'))
+
+
+# Hardcoded fallback – used only when LeadStatus table is empty (fresh install)
+DEFAULT_LEAD_STATUSES = (
+    ('NEW', 'New'),
+    ('CONTACTED', 'Contacted'),
+    ('QUALIFIED', 'Qualified'),
+    ('PROPOSAL_SENT', 'Proposal Sent'),
+    ('NEGOTIATION', 'Negotiation'),
+    ('CLOSED_WON', 'Closed Won'),
+    ('CLOSED_LOST', 'Closed Lost'),
+    ('TRANSFERRED', 'Transferred'),
+)
+
+
 class Lead(models.Model):
-    LEAD_STATUS = (
-        ('NEW', 'New'),
-        ('CONTACTED', 'Contacted'),
-        ('QUALIFIED', 'Qualified'),
-        ('PROPOSAL_SENT', 'Proposal Sent'),
-        ('NEGOTIATION', 'Negotiation'),
-        ('CLOSED_WON', 'Closed Won'),
-        ('CLOSED_LOST', 'Closed Lost'),
-        ('TRANSFERRED', 'Transferred')
-    )
+    LEAD_STATUS = DEFAULT_LEAD_STATUSES
     
     PRIORITY = (
         ('LOW', 'Low'),
@@ -108,6 +164,7 @@ class Lead(models.Model):
     last_name = models.CharField(max_length=100)
     email = models.EmailField()
     phone = models.CharField(max_length=15)
+    alternate_phone = models.CharField(max_length=15, blank=True, verbose_name="Alternate Phone")
     school_name = models.CharField(max_length=200, blank=True, verbose_name="School Name")
     position = models.CharField(max_length=100, blank=True)
     GRADUATION_CHOICES = (
@@ -169,20 +226,92 @@ class Lead(models.Model):
         super().save(*args, **kwargs)
 
 
+class LeadAlternatePhone(models.Model):
+    """
+    Additional alternate phone numbers for a lead, maintained by counsellors.
+    This lets counsellors add multiple contact numbers without editing core lead fields.
+    """
+    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name='alternate_phones')
+    phone = models.CharField(max_length=20)
+    label = models.CharField(max_length=50, blank=True, help_text="Eg. Father, Mother, Guardian")
+    created_by = models.ForeignKey(Counsellor, null=True, blank=True, on_delete=models.SET_NULL)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    def __str__(self):
+        return f"{self.lead.lead_id} - {self.phone} ({self.label or 'alternate'})"
+
+
+class ActivityType(models.Model):
+    """Configurable activity types managed from admin panel."""
+    code = models.CharField(max_length=30, unique=True, help_text="Internal code e.g. CALL, EMAIL, MEETING")
+    name = models.CharField(max_length=100, help_text="Display name e.g. 'Phone Call', 'Email'")
+    description = models.TextField(blank=True)
+    icon = models.CharField(max_length=50, default='fas fa-tasks', help_text="FontAwesome icon class")
+    color = models.CharField(max_length=20, default='info', help_text="Bootstrap badge color class")
+    is_active = models.BooleanField(default=True)
+    is_system = models.BooleanField(default=False, help_text="System types cannot be deleted")
+    sort_order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+        verbose_name_plural = 'Activity Types'
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def get_choices(cls):
+        return list(cls.objects.filter(is_active=True).order_by('sort_order', 'name').values_list('code', 'name'))
+
+    @classmethod
+    def get_all_choices(cls):
+        return list(cls.objects.order_by('sort_order', 'name').values_list('code', 'name'))
+
+
+class NextAction(models.Model):
+    """Configurable next-action options managed from admin panel."""
+    code = models.CharField(max_length=30, unique=True, help_text="Internal code e.g. CALLBACK, SEND_BROCHURE")
+    name = models.CharField(max_length=100, help_text="Display name e.g. 'Callback', 'Send Brochure'")
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    is_system = models.BooleanField(default=False)
+    sort_order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+        verbose_name_plural = 'Next Actions'
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def get_choices(cls):
+        return [('', '— None —')] + list(cls.objects.filter(is_active=True).order_by('sort_order', 'name').values_list('code', 'name'))
+
+    @classmethod
+    def get_all_choices(cls):
+        return list(cls.objects.order_by('sort_order', 'name').values_list('code', 'name'))
+
+
+DEFAULT_ACTIVITY_TYPES = (
+    ('CALL', 'Phone Call'),
+    ('EMAIL', 'Email'),
+    ('MEETING', 'Meeting'),
+    ('PROPOSAL', 'Proposal Sent'),
+    ('FOLLOW_UP', 'Visit'),
+    ('TRANSFER', 'Lead Transfer'),
+    ('NOTE', 'Note'),
+)
+
+
 class LeadActivity(models.Model):
-    ACTIVITY_TYPE = (
-        ('CALL', 'Phone Call'),
-        ('EMAIL', 'Email'),
-        ('MEETING', 'Meeting'),
-        ('PROPOSAL', 'Proposal Sent'),
-        ('FOLLOW_UP', 'Follow Up'),
-        ('TRANSFER', 'Lead Transfer'),
-        ('NOTE', 'Note')
-    )
+    ACTIVITY_TYPE = DEFAULT_ACTIVITY_TYPES
 
     lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name='activities')
     counsellor = models.ForeignKey(Counsellor, on_delete=models.CASCADE)
-    activity_type = models.CharField(max_length=20, choices=ACTIVITY_TYPE, db_index=True)
+    activity_type = models.CharField(max_length=30, choices=ACTIVITY_TYPE, db_index=True)
     subject = models.CharField(max_length=200)
     description = models.TextField()
     outcome = models.CharField(max_length=200, blank=True)
@@ -239,12 +368,15 @@ class NotificationCounsellor(models.Model):
 
 
 class NotificationAdmin(models.Model):
+    admin = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='admin_notifications', null=True, blank=True)
     message = models.TextField()
     is_read = models.BooleanField(default=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
+        if self.admin:
+            return f"{self.admin.first_name} - {self.message[:50]}"
         return f"Admin - {self.message[:50]}"
 
 
@@ -280,20 +412,113 @@ class CounsellorPerformance(models.Model):
         return f"{self.counsellor.admin.first_name} - {self.month.strftime('%B %Y')}"
 
 
+class DataAccessLog(models.Model):
+    """
+    Lightweight audit log for potentially sensitive data access.
+    Used to detect unusual behaviour (eg. many lead views in short time)
+    and to provide forensic evidence in case of data leaks.
+    """
+    ACTION_CHOICES = (
+        ('view_lead_detail', 'View lead detail'),
+        ('list_my_leads', 'List my leads'),
+        ('view_business_detail', 'View business detail'),
+        ('reveal_phone', 'Reveal phone'),
+        ('reveal_alternate_phone', 'Reveal alternate phone'),
+    )
+
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    counsellor = models.ForeignKey(Counsellor, null=True, blank=True, on_delete=models.SET_NULL)
+    action = models.CharField(max_length=50, choices=ACTION_CHOICES, db_index=True)
+    lead = models.ForeignKey(Lead, null=True, blank=True, on_delete=models.SET_NULL)
+    business = models.ForeignKey(Business, null=True, blank=True, on_delete=models.SET_NULL)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['action', 'created_at']),
+            models.Index(fields=['counsellor', 'created_at']),
+        ]
+
+    def __str__(self):
+        target = self.lead or self.business
+        return f"{self.user.email} - {self.action} - {target or 'n/a'}"
+
+
+class DailyTarget(models.Model):
+    """
+    Simple daily task target: admin sets a number, system auto-prioritises.
+    Priority order: today's visits → pending activities → leads by status (NEW last).
+    """
+    target_date = models.DateField(db_index=True)
+    target_count = models.PositiveIntegerField(help_text="Total tasks to show (e.g. 100)")
+    created_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, related_name='created_targets')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-target_date']
+
+    def __str__(self):
+        return f"{self.target_count} tasks — {self.target_date}"
+
+
+class DailyTargetAssignment(models.Model):
+    """Links a DailyTarget to one or more counsellors."""
+    target = models.ForeignKey(DailyTarget, on_delete=models.CASCADE, related_name='assignments')
+    counsellor = models.ForeignKey(Counsellor, on_delete=models.CASCADE, related_name='daily_targets')
+    completed_count = models.IntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('target', 'counsellor')
+
+    def __str__(self):
+        return f"{self.counsellor.admin.first_name} — {self.target}"
+
+
+def _is_admin_user_type(user_type) -> bool:
+    return str(user_type) == "1"
+
+
 @receiver(post_save, sender=CustomUser)
-def create_user_profile(sender, instance, created, **kwargs):
-    if created:
-        if instance.user_type == '1':
-            Admin.objects.create(admin=instance)
-        # Note: Counsellor profiles are created manually in the view
-        # to avoid conflicts with employee_id requirements
+def ensure_admin_profile(sender, instance, **kwargs):
+    """Create or fix main_app.Admin for CRM admins (user_type 1), including createsuperuser."""
+    if not _is_admin_user_type(instance.user_type):
+        return
+    profile, created = Admin.objects.get_or_create(
+        admin=instance,
+        defaults={
+            "is_superadmin": instance.is_superuser,
+            "can_delete": True,
+            "can_view_performance": True,
+            "can_view_counsellor_work": True,
+            "can_manage_settings": True,
+        },
+    )
+    if instance.is_superuser and not profile.is_superadmin:
+        profile.is_superadmin = True
+        profile.can_delete = True
+        profile.can_view_performance = True
+        profile.can_view_counsellor_work = True
+        profile.can_manage_settings = True
+        profile.save(
+            update_fields=[
+                "is_superadmin",
+                "can_delete",
+                "can_view_performance",
+                "can_view_counsellor_work",
+                "can_manage_settings",
+            ]
+        )
+    # Counsellor profiles stay manual in views (employee_id, etc.)
 
 
 @receiver(post_save, sender=CustomUser)
 def save_user_profile(sender, instance, **kwargs):
     try:
-        if instance.user_type == '1':
-            if hasattr(instance, 'admin'):
+        if _is_admin_user_type(instance.user_type):
+            if hasattr(instance, "admin"):
                 instance.admin.save()
         if instance.user_type == '2':
             if hasattr(instance, 'counsellor'):

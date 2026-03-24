@@ -105,8 +105,8 @@
                                                 <span class="metric-value">{{item.performance.total_leads_qualified}}</span>
                                             </div>
                                             <div class="metric-item">
-                                                <span class="metric-label">Business Generated:</span>
-                                                <span class="metric-value">₹{{item.performance.total_business_generated|floatformat:0}}</span>
+                                                <span class="metric-label">Converted Leads This Month:</span>
+                                                <span class="metric-value">{{item.performance.total_business_generated|floatformat:0}}</span>
                                             </div>
                                             <div class="metric-item">
                                                 <span class="metric-label">Avg Response Time:</span>
@@ -140,7 +140,7 @@
 <script>
     function exportPerformance() {
         // Create a simple CSV export
-        let csv = 'Counsellor,Employee ID,Total Leads,Leads Contacted,Leads Qualified,Business Generated,Conversion Rate\n';
+        let csv = 'Counsellor,Employee ID,Total Leads,Leads Contacted,Leads Qualified,Converted Leads (Month),Conversion Rate\n';
         
         {% for item in performance_data %}
         csv += '{{item.counsellor.admin.first_name}} {{item.counsellor.admin.last_name}},{{item.counsellor.employee_id}},{{item.performance.total_leads_assigned}},{{item.performance.total_leads_contacted}},{{item.performance.total_leads_qualified}},{{item.performance.total_business_generated}},{{item.performance.conversion_rate}}%\n';

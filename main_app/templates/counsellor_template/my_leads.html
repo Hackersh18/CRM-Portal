@@ -1,5 +1,6 @@
 {% extends 'main_app/base.html' %}
 {% load static %}
+{% load lead_tags %}
 {% block page_title %}{{page_title}}{% endblock page_title %}
 {% block content_title %}{{page_title}}{% endblock content_title %}
 
@@ -32,6 +33,9 @@
         align-items: center;
         width: auto;
     }
+    .card-header {
+        background-color: #aeaeaf;
+    }
     @media (max-width: 576px) {
         #example1 tbody td.actions-cell .btn {
             padding: 2px 5px;
@@ -46,7 +50,7 @@
             <div class="col-12">
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">My Assigned Leads</h3>
+                        <h3 class="card-title"><label><strong>My Assinged Leads</strong></label></h3>
                         <div class="card-tools">
                             <div class="btn-group">
                                 <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-toggle="dropdown">
@@ -74,9 +78,8 @@
                                     <th>Source</th>
                                     <th>Status</th>
                                     <th>Priority</th>
-                                    <th>Expected Value</th>
                                     <th>Last Contact</th>
-                                    <th>Next Follow-up</th>
+                                    <th>Next Visit Date</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -86,22 +89,23 @@
                                     <td>{{lead.lead_id}}</td>
                                     <td>{{lead.first_name}} {{lead.last_name}}</td>
                                     <td>{{lead.email}}</td>
-                                    <td>{{lead.phone}}</td>
+                                    <td>
+                                        {% if lead.phone %}
+                                            <span class="masked-phone" data-lead-id="{{ lead.id }}">
+                                                ****{{ lead.phone|slice:"-3:" }}
+                                            </span>
+                                            <button type="button"
+                                                    class="btn btn-xs btn-outline-secondary ml-1 reveal-phone-btn"
+                                                    data-lead-id="{{ lead.id }}">
+                                                View
+                                            </button>
+                                        {% else %}
+                                            <span class="text-muted">Not provided</span>
+                                        {% endif %}
+                                    </td>
                                     <td>{{lead.source.name}}</td>
                                     <td>
-                                        {% if lead.status == 'NEW' %}
-                                            <span class="badge badge-info">New</span>
-                                        {% elif lead.status == 'CONTACTED' %}
-                                            <span class="badge badge-warning">Contacted</span>
-                                        {% elif lead.status == 'QUALIFIED' %}
-                                            <span class="badge badge-primary">Qualified</span>
-                                        {% elif lead.status == 'CLOSED_WON' %}
-                                            <span class="badge badge-success">Closed Won</span>
-                                        {% elif lead.status == 'CLOSED_LOST' %}
-                                            <span class="badge badge-danger">Closed Lost</span>
-                                        {% elif lead.status == 'TRANSFERRED' %}
-                                            <span class="badge badge-secondary">Transferred</span>
-                                        {% endif %}
+                                        {% status_badge lead.status %}
                                     </td>
                                     <td>
                                         {% if lead.priority == 'LOW' %}
@@ -114,7 +118,6 @@
                                             <span class="badge badge-dark">Urgent</span>
                                         {% endif %}
                                     </td>
-                                    <td>₹{{lead.expected_value|floatformat:0}}</td>
                                     <td>
                                         {% if lead.last_contact_date %}
                                             {{lead.last_contact_date|date:"M d, Y"}}
@@ -136,9 +139,6 @@
                                         <a href="{% url 'add_lead_activity' lead.id %}" class="btn btn-sm btn-success">
                                             <i class="fas fa-plus"></i> Activity
                                         </a>
-                                        {% if lead.status != 'CLOSED_WON' and lead.status != 'CLOSED_LOST' %}
-                
-                                        {% endif %}
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -159,8 +159,37 @@
             "responsive": true,
             "lengthChange": false,
             "autoWidth": false,
+            "pageLength": 25,
+            "scrollX": true,
+            "columnDefs": [
+                {
+                    "targets": 0,      // Lead ID column
+                    "visible": false,  // hide by default
+                    "searchable": true
+                }
+            ],
             "buttons": ["copy", "csv", "excel", "pdf", "print", "colvis"]
         }).buttons().container().appendTo('#example1_wrapper .col-md-6:eq(0)');
+
+        // Click-to-reveal phone with logging and threshold alerts
+        $('#example1').on('click', '.reveal-phone-btn', function () {
+            var btn = $(this);
+            var leadId = btn.data('lead-id');
+            var cell = btn.closest('td').find('.masked-phone');
+            $.ajax({
+                url: "{% url 'reveal_phone' 0 %}".replace('0', leadId),
+                type: "POST",
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                success: function (data) {
+                    if (data.phone) {
+                        cell.html('<a href="tel:' + data.phone + '" class="text-primary"><i class="fas fa-phone mr-1"></i>' + data.phone + '</a>');
+                        btn.remove(); // prevent repeated clicks
+                    }
+                }
+            });
+        });
     });
 </script>
 {% endblock custom_js %}

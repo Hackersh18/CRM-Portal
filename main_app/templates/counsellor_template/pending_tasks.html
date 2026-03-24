@@ -1,0 +1,261 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% load lead_tags %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+
+        <!-- Stats Row -->
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <div class="info-box">
+                    <span class="info-box-icon bg-warning"><i class="fas fa-tasks"></i></span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Incomplete Activities</span>
+                        <span class="info-box-number">{{ incomplete_activities|length }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="info-box">
+                    <span class="info-box-icon bg-info"><i class="fas fa-forward"></i></span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Pending Next Actions</span>
+                        <span class="info-box-number">{{ pending_next_actions|length }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="info-box">
+                    <span class="info-box-icon bg-success"><i class="fas fa-calendar-check"></i></span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Upcoming Visits</span>
+                        <span class="info-box-number">{{ upcoming_visits|length }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Incomplete Activities -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card card-warning card-outline">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-exclamation-triangle mr-1"></i> Incomplete Activities</h3>
+                    </div>
+                    <div class="card-body">
+                        {% if incomplete_activities %}
+                        <table class="table table-bordered table-striped pending-table">
+                            <thead>
+                                <tr>
+                                    <th>Scheduled</th>
+                                    <th>Lead</th>
+                                    <th>Type</th>
+                                    <th>Subject</th>
+                                    <th>Next Action</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for activity in incomplete_activities %}
+                                <tr>
+                                    <td>
+                                        {% if activity.scheduled_date %}
+                                            {{ activity.scheduled_date|date:"M d, Y H:i" }}
+                                        {% else %}
+                                            <span class="text-muted">Not scheduled</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'lead_detail' activity.lead.id %}">
+                                            {{ activity.lead.first_name }} {{ activity.lead.last_name }}
+                                        </a>
+                                    </td>
+                                    <td><span class="badge badge-info">{{ activity.get_activity_type_display }}</span></td>
+                                    <td>{{ activity.subject }}</td>
+                                    <td>
+                                        {% if activity.next_action %}
+                                            <span class="badge badge-secondary">
+                                                <i class="fas fa-forward mr-1"></i>{% next_action_name activity.next_action %}
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <form action="{% url 'mark_activity_complete' activity.lead.id activity.id %}" method="post" style="display:inline-block;">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-success" title="Mark Complete">
+                                                    <i class="fas fa-check"></i> Complete
+                                                </button>
+                                            </form>
+                                            <a href="{% url 'edit_lead_activity' activity.lead.id activity.id %}" class="btn btn-warning ml-1" title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <form action="{% url 'delete_lead_activity' activity.lead.id activity.id %}" method="post" style="display:inline;">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-danger ml-1" title="Delete" onclick="return confirm('Delete this activity?')">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>
+                                            <a href="{% url 'lead_detail' activity.lead.id %}" class="btn btn-info ml-1" title="View Lead">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                            <p class="text-muted">All activities are completed!</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pending Next Actions -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card card-info card-outline">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-forward mr-1"></i> Pending Next Actions</h3>
+                        <span class="ml-2 text-muted small">Actions from completed activities that haven't been followed through yet</span>
+                    </div>
+                    <div class="card-body">
+                        {% if pending_next_actions %}
+                        <table class="table table-bordered table-striped pending-table">
+                            <thead>
+                                <tr>
+                                    <th>Completed On</th>
+                                    <th>Lead</th>
+                                    <th>Activity Done</th>
+                                    <th>Next Action Required</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for activity in pending_next_actions %}
+                                <tr>
+                                    <td>{{ activity.completed_date|date:"M d, Y H:i" }}</td>
+                                    <td>
+                                        <a href="{% url 'lead_detail' activity.lead.id %}">
+                                            {{ activity.lead.first_name }} {{ activity.lead.last_name }}
+                                        </a>
+                                    </td>
+                                    <td><span class="badge badge-info">{{ activity.get_activity_type_display }}</span> — {{ activity.subject }}</td>
+                                    <td>
+                                        <span class="badge badge-warning">
+                                            <i class="fas fa-forward mr-1"></i>{% next_action_name activity.next_action %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'add_lead_activity' activity.lead.id %}" class="btn btn-primary" title="Log the next action">
+                                                <i class="fas fa-plus"></i> Log Action
+                                            </a>
+                                            <a href="{% url 'lead_detail' activity.lead.id %}" class="btn btn-info ml-1" title="View Lead">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                            <p class="text-muted">No pending next actions!</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upcoming Visits -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card card-success card-outline">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-calendar-check mr-1"></i> Upcoming Visits</h3>
+                    </div>
+                    <div class="card-body">
+                        {% if upcoming_visits %}
+                        <table class="table table-bordered table-striped pending-table">
+                            <thead>
+                                <tr>
+                                    <th>Visit Date</th>
+                                    <th>Lead</th>
+                                    <th>Status</th>
+                                    <th>Course Interested</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for lead in upcoming_visits %}
+                                <tr>
+                                    <td>{{ lead.next_follow_up|date:"M d, Y H:i" }}</td>
+                                    <td>
+                                        <a href="{% url 'lead_detail' lead.id %}">
+                                            {{ lead.first_name }} {{ lead.last_name }}
+                                        </a>
+                                    </td>
+                                    <td>{% status_badge lead.status %}</td>
+                                    <td>{{ lead.course_interested|default:"—" }}</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <form action="{% url 'mark_followup_complete' lead.id %}" method="post" style="display:inline-block;">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-success" onclick="return confirm('Mark this visit as completed?')">
+                                                    <i class="fas fa-check"></i> Complete
+                                                </button>
+                                            </form>
+                                            <a href="{% url 'lead_detail' lead.id %}" class="btn btn-info ml-1">
+                                                <i class="fas fa-eye"></i> View
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-calendar-check fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No upcoming visits scheduled.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</section>
+{% endblock content %}
+
+{% block custom_js %}
+<script>
+    $(function () {
+        $(".pending-table").each(function () {
+            $(this).DataTable({
+                "responsive": true,
+                "lengthChange": false,
+                "autoWidth": false,
+                "order": [[0, "asc"]],
+                "buttons": ["copy", "csv", "excel", "pdf", "print"]
+            }).buttons().container().appendTo($(this).closest('.card-body').find('.col-md-6:eq(0)'));
+        });
+    });
+</script>
+{% endblock custom_js %}

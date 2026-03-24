@@ -1,9 +1,11 @@
 {% extends 'main_app/base.html' %}
 {% load static %}
+{% load tz %}
 {% block page_title %}{{page_title}}{% endblock page_title %}
 {% block content_title %}{{page_title}}{% endblock content_title %}
 
 {% block custom_css %}
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.5/main.min.css' rel='stylesheet' />
 <style>
     .info-box {
         box-shadow: 0 0 1px rgba(0,0,0,.125), 0 1px 3px rgba(0,0,0,.2);
@@ -52,6 +54,116 @@
         font-size: 1.25rem;
         margin: 0;
     }
+    
+    /* Calendar styling */
+    #dashboard-calendar {
+        padding: 8px;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    
+    #dashboard-calendar .fc-view-harness {
+        max-width: 100%;
+    }
+    
+    #dashboard-calendar .fc-scrollgrid {
+        width: 100% !important;
+        table-layout: fixed;
+    }
+    
+    #dashboard-calendar .fc {
+        font-size: 0.9rem;
+    }
+    
+    #dashboard-calendar .fc-event {
+        cursor: pointer;
+        font-size: 0.75rem;
+        margin: 2px 0;
+        border-radius: 3px;
+    }
+    
+    #dashboard-calendar .fc-event-title {
+        font-weight: 500;
+        padding: 2px 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    #dashboard-calendar .fc-daygrid-day-frame {
+        min-height: 70px;
+    }
+    
+    #dashboard-calendar .fc-col-header-cell,
+    #dashboard-calendar .fc-daygrid-day {
+        width: calc(100% / 7) !important;
+    }
+    
+    #dashboard-calendar .fc-col-header-cell {
+        padding: 8px 4px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    
+    #dashboard-calendar .fc-daygrid-day-number {
+        font-size: 0.85rem;
+        padding: 4px;
+        font-weight: 500;
+    }
+    
+    #dashboard-calendar .fc-toolbar-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+    
+    #dashboard-calendar .fc-button {
+        padding: 0.3rem 0.6rem;
+        font-size: 0.8rem;
+        line-height: 1.2;
+    }
+    
+    #dashboard-calendar .fc-button-group {
+        display: flex;
+        gap: 2px;
+    }
+    
+    #dashboard-calendar .fc-daygrid-day {
+        border-color: #e0e0e0;
+    }
+    
+    #dashboard-calendar .fc-daygrid-day-top {
+        flex-direction: row;
+        justify-content: flex-start;
+    }
+    
+    #dashboard-calendar .fc-scrollgrid {
+        border-color: #dee2e6;
+    }
+    
+    #dashboard-calendar .fc-day-today {
+        background-color: #fff3cd;
+    }
+    
+    #dashboard-calendar .fc-daygrid-event {
+        border-left-width: 3px;
+    }
+    
+    #dashboard-calendar .fc-daygrid-more-link {
+        font-size: 0.7rem;
+        padding: 1px 3px;
+    }
+    
+    #dashboard-calendar .fc-popover {
+        font-size: 0.8rem;
+    }
+    
+    #dashboard-calendar .fc-popover-header {
+        padding: 0.5rem;
+    }
+    
+    #dashboard-calendar .fc-popover-body {
+        padding: 0.5rem;
+    }
 </style>
 {% endblock custom_css %}
 
@@ -84,11 +196,11 @@
             <div class="col-12 col-sm-6 col-md-3">
                 <div class="info-box">
                     <span class="info-box-icon bg-success">
-                        <i class="fas fa-briefcase"></i>
+                        <i class="fas fa-check-circle"></i>
                     </span>
                     <div class="info-box-content">
-                        <span class="info-box-text">Active Business</span>
-                        <span class="info-box-number">₹{{total_business_value|floatformat:0}}</span>
+                        <span class="info-box-text">Converted Leads</span>
+                        <span class="info-box-number">{{total_business_value}}</span>
                     </div>
                 </div>
             </div>
@@ -98,7 +210,7 @@
                         <i class="fas fa-clock"></i>
                     </span>
                     <div class="info-box-content">
-                        <span class="info-box-text">Pending Follow-ups</span>
+                        <span class="info-box-text">Pending Visits</span>
                         <span class="info-box-number">{{upcoming_followups|length}}</span>
                     </div>
                 </div>
@@ -109,8 +221,291 @@
                         <i class="fas fa-chart-line"></i>
                     </span>
                     <div class="info-box-content">
-                        <span class="info-box-text">Monthly Business</span>
-                        <span class="info-box-number">₹{{monthly_business|floatformat:0}}</span>
+                        <span class="info-box-text">Monthly Converted Leads</span>
+                        <span class="info-box-number">{{monthly_business}}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity progress (pipeline + this month) -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card card-outline card-primary">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-chart-pie"></i> Your activity progress</h3>
+                        <div class="card-tools">
+                            <span class="badge badge-light">Assigned leads by status &amp; visits</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <h6 class="text-muted text-uppercase small mb-2"><i class="fas fa-bullseye text-success"></i> Today's target progress</h6>
+                        <p class="small text-muted mb-2">Same rules as <a href="{% url 'my_daily_target' %}">Today's Target</a>: completed activities count when logged today or scheduled on/before today.</p>
+                        <div class="row align-items-center mb-3">
+                            <div class="col-md-8">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <strong>{{ activity_progress.completed_toward_target }}</strong> / <strong>{{ activity_progress.daily_target }}</strong> completed
+                                    <span class="text-muted">{{ activity_progress.target_remaining }} remaining</span>
+                                </div>
+                                <div class="progress" style="height: 22px;">
+                                    <div class="progress-bar bg-success" role="progressbar" style="width: {{ activity_progress.target_progress_pct }}%;" aria-valuenow="{{ activity_progress.target_progress_pct }}" aria-valuemin="0" aria-valuemax="100">{{ activity_progress.target_progress_pct }}%</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-center mt-2 mt-md-0">
+                                <span class="badge badge-success badge-lg p-2" style="font-size:1rem;">Target: {{ activity_progress.daily_target }}</span>
+                            </div>
+                        </div>
+                        <h6 class="text-muted text-uppercase small mb-2">Toward target — by activity type</h6>
+                        <div class="row text-center mb-3">
+                            <div class="col-6 col-md-2 mb-2">
+                                <div class="border border-info rounded p-2">
+                                    <div class="h4 mb-0 text-info">{{ activity_progress.contact_touchpoints_today }}</div>
+                                    <small class="text-muted">Call / email / meeting</small>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-2 mb-2">
+                                <div class="border border-success rounded p-2">
+                                    <div class="h4 mb-0 text-success">{{ activity_progress.follow_up_activities_today }}</div>
+                                    <small class="text-muted">Visit / follow-up</small>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-2 mb-2">
+                                <div class="border rounded p-2 bg-light">
+                                    <div class="h4 mb-0 text-secondary">{{ activity_progress.note_activities_today }}</div>
+                                    <small class="text-muted">Notes</small>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-2 mb-2">
+                                <div class="border border-dark rounded p-2">
+                                    <div class="h4 mb-0">{{ activity_progress.transfer_activities_today }}</div>
+                                    <small class="text-muted">Transfer</small>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-4 mb-2">
+                                <div class="border border-secondary rounded p-2">
+                                    <div class="h4 mb-0">{{ activity_progress.total_activities_today }}</div>
+                                    <small class="text-muted">Total toward target</small>
+                                </div>
+                            </div>
+                        </div>
+                        <h6 class="text-muted text-uppercase small mb-2">Leads today (calendar — not all in target count)</h6>
+                        <div class="row text-center mb-4">
+                            <div class="col-6 col-md-4 mb-2">
+                                <div class="border border-primary rounded p-2">
+                                    <div class="h4 mb-0 text-primary">{{ activity_progress.new_leads_today }}</div>
+                                    <small class="text-muted">New leads assigned today</small>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-4 mb-2">
+                                <div class="border border-warning rounded p-2">
+                                    <div class="h4 mb-0 text-warning">{{ activity_progress.contacted_updates_today }}</div>
+                                    <small class="text-muted">Contacted + contact logged today</small>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-4 mb-2">
+                                <div class="border rounded p-2 bg-light">
+                                    <div class="h4 mb-0 text-dark">{{ activity_progress.leads_worked_today }}</div>
+                                    <small class="text-muted">Any lead with contact logged today</small>
+                                </div>
+                            </div>
+                        </div>
+                        <h6 class="text-muted text-uppercase small mb-2">Pipeline (your assigned leads)</h6>
+                        <div class="row text-center mb-3">
+                            <div class="col-6 col-md-3 mb-2">
+                                <div class="border rounded p-2 bg-light">
+                                    <div class="h4 mb-0 text-secondary">{{ activity_progress.new }}</div>
+                                    <small class="text-muted">New</small>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3 mb-2">
+                                <div class="border rounded p-2 bg-light">
+                                    <div class="h4 mb-0 text-info">{{ activity_progress.contacted }}</div>
+                                    <small class="text-muted">Contacted</small>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3 mb-2">
+                                <div class="border rounded p-2 bg-light">
+                                    <div class="h4 mb-0 text-primary">{{ activity_progress.qualified }}</div>
+                                    <small class="text-muted">Qualified</small>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3 mb-2">
+                                <div class="border rounded p-2 bg-light">
+                                    <div class="h4 mb-0 text-success">{{ activity_progress.closed_won }}</div>
+                                    <small class="text-muted">Won</small>
+                                </div>
+                            </div>
+                        </div>
+                        <h6 class="text-muted text-uppercase small mb-2">Visits &amp; activities</h6>
+                        <div class="row text-center">
+                            <div class="col-6 col-md-3 mb-2">
+                                <div class="border rounded p-2">
+                                    <div class="h4 mb-0 text-danger">{{ activity_progress.visits_scheduled }}</div>
+                                    <small class="text-muted">Visits scheduled (any date)</small>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3 mb-2">
+                                <div class="border rounded p-2">
+                                    <div class="h4 mb-0 text-warning">{{ activity_progress.visits_today }}</div>
+                                    <small class="text-muted">Visits due today</small>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3 mb-2">
+                                <div class="border rounded p-2">
+                                    <div class="h4 mb-0 text-danger">{{ activity_progress.visits_overdue }}</div>
+                                    <small class="text-muted">Overdue visits</small>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3 mb-2">
+                                <div class="border rounded p-2">
+                                    <div class="h4 mb-0 text-secondary">{{ activity_progress.pending_activities }}</div>
+                                    <small class="text-muted">Pending activities</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row text-center mt-2">
+                            <div class="col-6 col-md-4 mb-2">
+                                <div class="border rounded p-2 bg-success text-white">
+                                    <div class="h4 mb-0">{{ activity_progress.activities_completed_month }}</div>
+                                    <small>Activities completed (this month)</small>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-4 mb-2">
+                                <div class="border rounded p-2 bg-info text-white">
+                                    <div class="h4 mb-0">{{ activity_progress.visit_activities_month }}</div>
+                                    <small>Visit-type activities done (this month)</small>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-4 mb-2">
+                                <div class="border rounded p-2 bg-dark text-white">
+                                    <div class="h4 mb-0">{{ activity_progress.leads_assigned_this_month }}</div>
+                                    <small>Leads assigned to you (this month)</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pending Tasks Banner -->
+        {% if incomplete_activities_count > 0 or upcoming_followups %}
+        <div class="row mb-3">
+            <div class="col-12">
+                <a href="{% url 'pending_tasks' %}" class="text-decoration-none">
+                    <div class="alert alert-warning d-flex align-items-center mb-0">
+                        <i class="fas fa-clipboard-list fa-2x mr-3"></i>
+                        <div>
+                            <strong>You have pending tasks!</strong>
+                            {% if incomplete_activities_count > 0 %}
+                                {{ incomplete_activities_count }} incomplete activit{{ incomplete_activities_count|pluralize:"y,ies" }}
+                            {% endif %}
+                            {% if incomplete_activities_count > 0 and upcoming_followups %} &amp; {% endif %}
+                            {% if upcoming_followups %}
+                                {{ upcoming_followups|length }} upcoming visit{{ upcoming_followups|length|pluralize }}
+                            {% endif %}
+                            — <u>View all pending tasks</u>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Calendar and Upcoming Tasks Row -->
+        <div class="row">
+            <!-- Left Side: Upcoming Tasks -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header" style="padding: 0.5rem 1rem;">
+                        <h3 class="card-title" style="font-size: 1rem; margin: 0;">
+                            <i class="fas fa-tasks"></i> Today's Schedule
+                        </h3>
+                    </div>
+                    <div class="card-body" style="padding: 0.75rem; max-height: 400px; overflow-y: auto;">
+                        {% if upcoming_followups %}
+                            <h6 class="text-success mb-3"><i class="fas fa-calendar"></i> Visits Today</h6>
+                            <div class="list-group mb-3">
+                                {% for lead in upcoming_followups %}
+                                <div class="list-group-item">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1">{{lead.first_name}} {{lead.last_name}}</h6>
+                                        <small class="text-muted">{{lead.next_follow_up|localtime|time:"H:i"}}</small>
+                                    </div>
+                                    <p class="mb-1 small">{{lead.course_interested|default:"No course specified"}}</p>
+                                    <div class="mt-2">
+                                        <form action="{% url 'mark_followup_complete' lead.id %}" method="post" style="display:inline-block;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-success" title="Mark Visit as Complete">
+                                                <i class="fas fa-check"></i> Complete
+                                            </button>
+                                        </form>
+                                        <a href="{% url 'lead_detail' lead.id %}" class="btn btn-sm btn-info ml-2">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        
+                        {% if todays_activities %}
+                            <h6 class="text-primary mb-3"><i class="fas fa-tasks"></i> Activities Today</h6>
+                            <div class="list-group">
+                                {% for activity in todays_activities %}
+                                <div class="list-group-item">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1">{{activity.get_activity_type_display}}</h6>
+                                        <small class="text-muted">{{activity.scheduled_date|localtime|time:"H:i"}}</small>
+                                    </div>
+                                    <p class="mb-1 small"><strong>{{activity.subject}}</strong></p>
+                                    <p class="mb-1 small text-muted">{{activity.lead.first_name}} {{activity.lead.last_name}}</p>
+                                    <div class="mt-2">
+                                        {% if activity.is_completed %}
+                                            <span class="badge badge-success">Completed</span>
+                                        {% else %}
+                                            <span class="badge badge-warning">Pending</span>
+                                            <form action="{% url 'mark_activity_complete' activity.lead.id activity.id %}" method="post" style="display:inline-block;" class="ml-2">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-success" title="Mark as Complete">
+                                                    <i class="fas fa-check"></i> Complete
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                        <a href="{% url 'lead_detail' activity.lead.id %}" class="btn btn-sm btn-info ml-2">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        
+                        {% if not upcoming_followups and not todays_activities %}
+                            <div class="text-center py-4">
+                                <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
+                                <p class="text-muted">No scheduled tasks for today</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Side: Calendar -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header" style="padding: 0.5rem 1rem;">
+                        <h3 class="card-title" style="font-size: 1rem; margin: 0;">
+                            <i class="fas fa-calendar-alt"></i> Calendar
+                        </h3>
+                        <div class="card-tools">
+                            <a href="{% url 'counsellor_calendar' %}" class="btn btn-xs btn-primary" style="padding: 0.2rem 0.4rem; font-size: 0.75rem;">
+                                <i class="fas fa-external-link-alt"></i> Full View
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-body" style="padding: 0.75rem;">
+                        <div id="dashboard-calendar" style="height: 400px; width: 100%;"></div>
                     </div>
                 </div>
             </div>
@@ -211,10 +606,10 @@
                 </div>
             </div>
             <div class="col-md-6">
-                <!-- Upcoming Follow-ups -->
+                <!-- Upcoming Visits -->
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">Upcoming Follow-ups</h3>
+                        <h3 class="card-title">Upcoming Visits</h3>
                     </div>
                     <div class="card-body">
                         {% if upcoming_followups %}
@@ -227,7 +622,7 @@
                                     <i class="fas fa-calendar bg-info"></i>
                                     <div class="timeline-item">
                                         <span class="time"><i class="fas fa-clock"></i> {{lead.next_follow_up|time:"H:i"}}</span>
-                                        <h3 class="timeline-header">Follow-up Due</h3>
+                                        <h3 class="timeline-header">Visit Due</h3>
                                         <div class="timeline-body">
                                             <strong>{{lead.first_name}} {{lead.last_name}}</strong><br>
                                             <small>School: {{lead.school_name|default:"Not provided"}}</small><br>
@@ -243,7 +638,7 @@
                                 {% endfor %}
                             </div>
                         {% else %}
-                            <p class="text-muted">No upcoming follow-ups.</p>
+                            <p class="text-muted">No upcoming visits.</p>
                         {% endif %}
                     </div>
                 </div>
@@ -290,6 +685,7 @@
 
 {% block custom_js %}
 <script src="{% static 'plugins/chart.js/Chart.min.js' %}"></script>
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.5/main.min.js'></script>
 <script>
     // Lead Status Chart
     var leadStatusCtx = document.getElementById('leadStatusChart').getContext('2d');
@@ -310,6 +706,55 @@
             legend: {
                 position: 'bottom'
             }
+        }
+    });
+    
+    // Dashboard Calendar
+    document.addEventListener('DOMContentLoaded', function() {
+        var calendarEl = document.getElementById('dashboard-calendar');
+        if (calendarEl) {
+            var calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                headerToolbar: {
+                    left: 'prev,next',
+                    center: 'title',
+                    right: ''
+                },
+                events: function(fetchInfo, successCallback, failureCallback) {
+                    fetch('{% url "get_calendar_events" %}?start=' + fetchInfo.startStr + '&end=' + fetchInfo.endStr)
+                        .then(response => response.json())
+                        .then(data => {
+                            successCallback(data);
+                        })
+                        .catch(error => {
+                            console.error('Error fetching calendar events:', error);
+                            failureCallback(error);
+                        });
+                },
+                eventClick: function(info) {
+                    var event = info.event;
+                    var extendedProps = event.extendedProps;
+                    var leadId = extendedProps.lead_id;
+                    
+                    if (leadId) {
+                        window.location.href = '{% url "lead_detail" 0 %}'.replace('0', leadId);
+                    }
+                },
+                height: 400,
+                navLinks: false,
+                dayMaxEvents: 2,
+                moreLinkClick: 'popover',
+                eventDisplay: 'block',
+                eventTimeFormat: false,
+                aspectRatio: 1.2,
+                dayHeaderFormat: { weekday: 'narrow' },
+                fixedWeekCount: false,
+                showNonCurrentDates: true,
+                dayCellContent: function(info) {
+                    return { html: '<div class="fc-daygrid-day-number">' + info.dayNumberText + '</div>' };
+                }
+            });
+            calendar.render();
         }
     });
 </script>

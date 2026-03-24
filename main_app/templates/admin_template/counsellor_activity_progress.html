@@ -1,0 +1,80 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{ page_title }}{% endblock page_title %}
+{% block content_title %}{{ page_title }}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row mb-3">
+            <div class="col-12">
+                <a href="{% url 'admin_home' %}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-12">
+                <div class="card card-outline card-success">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-user-check"></i> Counsellor activity progress</h3>
+                        <div class="card-tools">
+                            <span class="badge badge-primary mr-1">Today vs target</span>
+                            <span class="badge badge-info">Visits &amp; pending</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small">Daily target and “done” use the same rules as <a href="{% url 'manage_daily_targets' %}">Daily Targets</a> and each counsellor’s <em>Today’s Target</em> page.</p>
+                    </div>
+                    <div class="card-body p-0 table-responsive">
+                        <table class="table table-sm table-striped table-hover mb-0 text-nowrap">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th rowspan="2" class="align-middle">Counsellor</th>
+                                    <th colspan="8" class="text-center bg-primary text-white">Today vs daily target</th>
+                                    <th colspan="4" class="text-center">Visits &amp; pending</th>
+                                </tr>
+                                <tr>
+                                    <th class="text-center" title="Admin-set daily target">Target</th>
+                                    <th class="text-center" title="Completed activities counting toward target">Done</th>
+                                    <th class="text-center">%</th>
+                                    <th class="text-center" title="Leads assigned today">New L</th>
+                                    <th class="text-center" title="Call/email/meeting toward target">Contact</th>
+                                    <th class="text-center" title="Contacted + contact today">Cont. L</th>
+                                    <th class="text-center" title="Visit/follow-up toward target">F/U</th>
+                                    <th class="text-center" title="Leads with contact today">Worked</th>
+                                    <th class="text-center" title="Leads with a visit date set">Visits set</th>
+                                    <th class="text-center">Visit today</th>
+                                    <th class="text-center">Overdue</th>
+                                    <th class="text-center" title="Incomplete activities">Pending</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in counsellor_activity_progress %}
+                                {% with p=row.progress %}
+                                <tr>
+                                    <td><strong>{{ row.counsellor.admin.first_name }} {{ row.counsellor.admin.last_name }}</strong></td>
+                                    <td class="text-center">{{ p.daily_target }}</td>
+                                    <td class="text-center font-weight-bold text-success">{{ p.completed_toward_target }}</td>
+                                    <td class="text-center">{{ p.target_progress_pct }}%</td>
+                                    <td class="text-center font-weight-bold text-primary">{{ p.new_leads_today }}</td>
+                                    <td class="text-center">{{ p.contact_touchpoints_today }}</td>
+                                    <td class="text-center">{{ p.contacted_updates_today }}</td>
+                                    <td class="text-center">{{ p.follow_up_activities_today }}</td>
+                                    <td class="text-center">{{ p.leads_worked_today }}</td>
+                                    <td class="text-center">{{ p.visits_scheduled }}</td>
+                                    <td class="text-center">{{ p.visits_today }}</td>
+                                    <td class="text-center">{% if p.visits_overdue %}<span class="badge badge-danger">{{ p.visits_overdue }}</span>{% else %}0{% endif %}</td>
+                                    <td class="text-center">{% if p.pending_activities %}<span class="badge badge-warning">{{ p.pending_activities }}</span>{% else %}0{% endif %}</td>
+                                </tr>
+                                {% endwith %}
+                                {% empty %}
+                                <tr><td colspan="13" class="text-center text-muted">No active counsellors.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

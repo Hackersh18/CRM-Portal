@@ -14,24 +14,46 @@ import dj_database_url
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
-# Load environment variables from .env file
+# Load environment variables from .env file for local/dev.
+# On production (e.g. Hostinger VPS), prefer real environment variables
+# and use a minimal .env only if needed.
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/3.1/howto/deployment/checklist/
+def get_bool_env(name: str, default: bool = False) -> bool:
+    """Parse a boolean environment variable in a robust way."""
+    val = os.environ.get(name)
+    if val is None:
+        return default
+    return val.strip().lower() in ("1", "true", "yes", "on")
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', 'f2zx8*lb*em*-*b+!&1lpp&$_9q9kmkar+l3x90do@s(+sr&x7')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() == 'true'
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    raise ImproperlyConfigured("SECRET_KEY environment variable is required")
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '127.0.0.1,localhost,crm-portal-u422.onrender.com').split(',')
+# DJANGO_DEBUG=True  -> DEBUG = True  (local/dev)
+# DJANGO_DEBUG=False -> DEBUG = False (production)
+DEBUG = get_bool_env('DJANGO_DEBUG', default=True)
+
+_raw_allowed_hosts = (
+    os.environ.get('DJANGO_ALLOWED_HOSTS')
+    or os.environ.get('ALLOWED_HOSTS')
+    or '127.0.0.1,localhost'
+)
+ALLOWED_HOSTS = [h.strip() for h in _raw_allowed_hosts.split(',') if h.strip()]
+
+# Trusted origins for CSRF on HTTPS (Django 4+). e.g. https://crm.example.com,https://www.example.com
+_csrf_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '').strip()
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
+
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
 
 # Security Headers for Production
 if not DEBUG:
@@ -41,13 +63,12 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    # Behind Nginx with HTTPS termination; redirect HTTP to HTTPS
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     X_FRAME_OPTIONS = 'DENY'
 
-
-# Application definition
 
 INSTALLED_APPS = [
     # Django Apps
@@ -70,11 +91,18 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # Moved to end
 
     # My Middleware
     'main_app.middleware.LoginCheckMiddleWare',
 ]
+
+# Enable WhiteNoise only in production so that local development
+# does not require the STATIC_ROOT directory and avoids noisy warnings.
+if not DEBUG:
+    MIDDLEWARE.insert(
+        MIDDLEWARE.index('django.middleware.security.SecurityMiddleware') + 1,
+        'whitenoise.middleware.WhiteNoiseMiddleware',
+    )
 
 ROOT_URLCONF = 'college_management_system.urls'
 
@@ -90,6 +118,9 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'main_app.context_processors.notification_count',
+                'main_app.context_processors.lead_status_info',
+                'main_app.context_processors.pending_task_count',
+                'main_app.context_processors.admin_permissions',
             ],
         },
     },
@@ -98,21 +129,43 @@ TEMPLATES = [
 WSGI_APPLICATION = 'college_management_system.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/3.1/ref/settings/#databases
-
-
 # Database configuration
-DATABASES = {
-    'default': dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-        conn_max_age=600,
-    )
-}
+#
+# Production / Supabase: set DATABASE_URL to the Postgres URI from
+# Supabase Dashboard → Project Settings → Database (use "URI" or "Session pooler").
+# Example: postgresql://postgres.[ref]:PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres?sslmode=require
+#
+# Set USE_SQLITE_LOCAL=True in .env for local dev without Postgres (ignores DATABASE_URL when DEBUG).
+_db_url = os.environ.get('DATABASE_URL') or f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
+if DEBUG and os.environ.get('USE_SQLITE_LOCAL', '').strip().lower() in ('1', 'true', 'yes'):
+    _db_url = f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
+DATABASES = {'default': dj_database_url.parse(_db_url)}
+_db = DATABASES['default']
+_engine = str(_db.get('ENGINE', ''))
+
+if 'postgresql' in _engine:
+    # Supabase requires TLS; pooler URIs usually include ?sslmode=require — ensure it is set.
+    _db.setdefault('OPTIONS', {})
+    _db['OPTIONS'].setdefault('sslmode', 'require')
+    try:
+        _pg_port = int(str(_db.get('PORT') or 5432))
+    except ValueError:
+        _pg_port = 5432
+    # Transaction pooler (Supabase port 6543): turn off persistent Django connections.
+    if _pg_port == 6543 or get_bool_env('SUPABASE_TRANSACTION_POOLER', False):
+        _db['CONN_MAX_AGE'] = 0
+    else:
+        _db['CONN_MAX_AGE'] = int(os.environ.get('DATABASE_CONN_MAX_AGE', '600'))
+else:
+    _db['CONN_MAX_AGE'] = int(os.environ.get('DATABASE_CONN_MAX_AGE', '600'))
+
+if DEBUG:
+    db_url = DATABASES['default'].get('NAME', '')
+    if 'sqlite' in str(db_url).lower() or 'sqlite' in str(DATABASES['default'].get('ENGINE', '')).lower():
+        # SQLite-specific optimizations will be applied via connection signals
+        pass
 
 
-# Password validation
-# https://docs.djangoproject.com/en/3.1/ref/settings/#auth-password-validators
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -129,9 +182,6 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-# Internationalization
-# https://docs.djangoproject.com/en/3.1/topics/i18n/
-
 LANGUAGE_CODE = 'en-us'
 
 # TIME_ZONE = 'UTC'  # Commented out to avoid conflict
@@ -143,18 +193,17 @@ USE_L10N = True
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/3.1/howto/static-files/
-
 STATIC_URL = '/static/'
 
 MEDIA_URL = '/media/'
 
-STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+# In production on Hostinger VPS, Nginx is configured to serve static files
+# from BASE_DIR / "staticfiles". Keep this in sync with nginx_config.conf.
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 AUTH_USER_MODEL = 'main_app.CustomUser'
 AUTHENTICATION_BACKENDS = ['main_app.EmailBackend.EmailBackend']
-TIME_ZONE = 'Africa/Lagos'
+TIME_ZONE = 'Asia/Kolkata'  # Indian Standard Time (IST)
 
 # EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
 # EMAIL_FILE_PATH = os.path.join(BASE_DIR, "sent_mails")
@@ -172,11 +221,25 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'main_app/static'),
 ]
 
+# Allow bulk operations with many form fields (e.g. deleting many leads at once)
+# Default is 1000; bump to a safer higher limit for admin actions.
+DATA_UPLOAD_MAX_NUMBER_FIELDS = int(os.environ.get('DATA_UPLOAD_MAX_NUMBER_FIELDS', '10000'))
+
 # Static files storage for Whitenoise
 if not DEBUG:
     # Use non-manifest storage to avoid build failures on vendor CSS assets
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
     WHITENOISE_MANIFEST_STRICT = False
+else:
+    # Local development: use finder for faster reloading
+    # No need to run collectstatic in development
+    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+    
+# Static files finders for faster development
+STATICFILES_FINDERS = [
+    'django.contrib.staticfiles.finders.FileSystemFinder',
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+]
 
 
 
@@ -185,8 +248,27 @@ SESSION_COOKIE_AGE = 1800  # 30 minutes in seconds
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_SAVE_EVERY_REQUEST = True
 
+# Upload limits (import + general uploads)
+MAX_LEAD_IMPORT_MB = int(os.environ.get('MAX_LEAD_IMPORT_MB', '10'))
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('DATA_UPLOAD_MAX_MEMORY_SIZE', str(12 * 1024 * 1024)))  # 12 MiB default
+FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('FILE_UPLOAD_MAX_MEMORY_SIZE', str(5 * 1024 * 1024)))  # 5 MiB to disk after
+
 # AI/LLM Settings
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+
+# Firebase settings
+FIREBASE_CONFIG = {
+    "apiKey": os.environ.get("FIREBASE_API_KEY"),
+    "authDomain": os.environ.get("FIREBASE_AUTH_DOMAIN"),
+    "databaseURL": os.environ.get("FIREBASE_DATABASE_URL"),
+    "projectId": os.environ.get("FIREBASE_PROJECT_ID"),
+    "storageBucket": os.environ.get("FIREBASE_STORAGE_BUCKET"),
+    "messagingSenderId": os.environ.get("FIREBASE_MESSAGING_SENDER_ID"),
+    "appId": os.environ.get("FIREBASE_APP_ID"),
+    "measurementId": os.environ.get("FIREBASE_MEASUREMENT_ID"),
+}
+if not all(FIREBASE_CONFIG.values()):
+    FIREBASE_CONFIG = None
 
 # Caching
 CACHES = {

@@ -1,5 +1,6 @@
 {% extends 'main_app/base.html' %}
 {% load static %}
+{% load lead_tags %}
 {% block page_title %}{{page_title}}{% endblock page_title %}
 {% block content_title %}{{page_title}}{% endblock content_title %}
 
@@ -25,13 +26,7 @@
                                             {{lead.phone}}<br>
                                             School: {{lead.school_name|default:"Not provided"}}<br>
                                             Current Status: 
-                                            {% if lead.status == 'NEW' %}
-                                                <span class="badge badge-info">New</span>
-                                            {% elif lead.status == 'CONTACTED' %}
-                                                <span class="badge badge-warning">Contacted</span>
-                                            {% elif lead.status == 'QUALIFIED' %}
-                                                <span class="badge badge-success">Qualified</span>
-                                            {% endif %}
+                                            {% status_badge lead.status %}
                                         </p>
                                     </div>
                                     <div class="form-group">

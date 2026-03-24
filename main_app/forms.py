@@ -1,6 +1,9 @@
 from django import forms
+from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.forms.widgets import DateInput, TextInput, DateTimeInput
 from .models import *
+import os
 
 
 class FormSettings(forms.ModelForm):
@@ -24,21 +27,25 @@ class CustomUserForm(FormSettings):
     }
     profile_pic = forms.ImageField(required=False)
 
+    def _customuser_for_form(self):
+        """Return the CustomUser row; instance may be CustomUser or Admin/Counsellor profile."""
+        inst = self.instance
+        if isinstance(inst, CustomUser):
+            return inst
+        if isinstance(inst, (Admin, Counsellor)):
+            return inst.admin
+        return inst
+
     def __init__(self, *args, **kwargs):
         super(CustomUserForm, self).__init__(*args, **kwargs)
 
-        if kwargs.get('instance'):
-            # For CustomUser instances, use the instance directly
-            instance = kwargs.get('instance')
-            if hasattr(instance, 'admin'):
-                # This is a Counsellor or Admin instance, get the CustomUser
-                instance = instance.admin
+        user = self._customuser_for_form()
+        if user is not None and getattr(user, 'pk', None):
             self.fields['password'].required = False
             for field in CustomUserForm.Meta.fields:
-                if hasattr(instance, field):
-                    self.fields[field].initial = getattr(instance, field)
-            if self.instance.pk is not None:
-                self.fields['password'].widget.attrs['placeholder'] = "Fill this only if you wish to update password"
+                if hasattr(user, field):
+                    self.fields[field].initial = getattr(user, field)
+            self.fields['password'].widget.attrs['placeholder'] = "Fill this only if you wish to update password"
 
     def save(self, commit=True):
         """Ensure passwords are hashed on create/update.
@@ -64,6 +71,26 @@ class CustomUserForm(FormSettings):
             instance.save()
         return instance
 
+    def clean_profile_pic(self):
+        picture = self.cleaned_data.get('profile_pic')
+        if not picture:
+            return picture
+
+        max_size_mb = getattr(settings, 'MAX_PROFILE_PIC_MB', 5)
+        if picture.size > max_size_mb * 1024 * 1024:
+            raise ValidationError(f"Profile picture too large. Max size is {max_size_mb}MB.")
+
+        content_type = getattr(picture, 'content_type', '') or ''
+        if not content_type.startswith('image/'):
+            raise ValidationError("Invalid file type. Please upload an image.")
+
+        ext = os.path.splitext(picture.name)[1].lower()
+        allowed_exts = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+        if ext not in allowed_exts:
+            raise ValidationError("Unsupported image format. Allowed: JPG, PNG, GIF, WEBP.")
+
+        return picture
+
     def clean_email(self, *args, **kwargs):
         formEmail = self.cleaned_data['email'].lower()
         if self.instance.pk is None:  # Insert
@@ -71,13 +98,7 @@ class CustomUserForm(FormSettings):
                 raise forms.ValidationError(
                     "The given email is already registered")
         else:  # Update
-            # For CustomUser instances, use the instance directly
-            if hasattr(self.instance, 'admin'):
-                # This is a Counsellor or Admin instance, get the CustomUser
-                dbEmail = self.instance.admin.email.lower()
-            else:
-                # This is a CustomUser instance
-                dbEmail = self.instance.email.lower()
+            dbEmail = self._customuser_for_form().email.lower()
             
             if dbEmail != formEmail:  # There has been changes
                 if CustomUser.objects.filter(email=formEmail).exists():
@@ -104,10 +125,17 @@ class CounsellorForm(CustomUserForm):
 
 class AdminForm(CustomUserForm):
     def __init__(self, *args, **kwargs):
+        # If editing an existing admin, convert Admin instance to CustomUser instance
+        # This must be done BEFORE calling super() so ModelForm sets self.instance correctly
+        if 'instance' in kwargs and kwargs['instance'] is not None:
+            instance = kwargs['instance']
+            # Check if this is an Admin model instance (not CustomUser)
+            if isinstance(instance, Admin):
+                kwargs['instance'] = instance.admin
         super(AdminForm, self).__init__(*args, **kwargs)
 
     class Meta(CustomUserForm.Meta):
-        model = Admin
+        model = CustomUser
         fields = CustomUserForm.Meta.fields
 
 
@@ -118,6 +146,74 @@ class LeadSourceForm(FormSettings):
     class Meta:
         model = LeadSource
         fields = ['name', 'description', 'is_active']
+
+
+class LeadStatusForm(FormSettings):
+    BADGE_COLOR_CHOICES = [
+        ('info', 'Info (Blue)'),
+        ('primary', 'Primary (Dark Blue)'),
+        ('warning', 'Warning (Yellow)'),
+        ('success', 'Success (Green)'),
+        ('danger', 'Danger (Red)'),
+        ('secondary', 'Secondary (Grey)'),
+        ('dark', 'Dark'),
+        ('light', 'Light'),
+    ]
+
+    color = forms.ChoiceField(choices=BADGE_COLOR_CHOICES)
+
+    def __init__(self, *args, **kwargs):
+        super(LeadStatusForm, self).__init__(*args, **kwargs)
+        self.fields['code'].help_text = 'Internal code (uppercase, no spaces, e.g. FOLLOW_UP)'
+
+    class Meta:
+        model = LeadStatus
+        fields = ['code', 'name', 'description', 'color', 'sort_order', 'is_active']
+
+
+class ActivityTypeForm(FormSettings):
+    ICON_CHOICES = [
+        ('fas fa-phone', 'Phone'),
+        ('fas fa-envelope', 'Envelope'),
+        ('fas fa-handshake', 'Handshake / Meeting'),
+        ('fas fa-file-alt', 'Document / Proposal'),
+        ('fas fa-calendar-check', 'Calendar / Visit'),
+        ('fas fa-exchange-alt', 'Transfer'),
+        ('fas fa-sticky-note', 'Note'),
+        ('fas fa-tasks', 'Tasks (default)'),
+        ('fas fa-comments', 'Chat / Discussion'),
+        ('fas fa-video', 'Video Call'),
+    ]
+    BADGE_COLOR_CHOICES = [
+        ('info', 'Info (Blue)'),
+        ('primary', 'Primary (Dark Blue)'),
+        ('warning', 'Warning (Yellow)'),
+        ('success', 'Success (Green)'),
+        ('danger', 'Danger (Red)'),
+        ('secondary', 'Secondary (Grey)'),
+        ('dark', 'Dark'),
+    ]
+
+    icon = forms.ChoiceField(choices=ICON_CHOICES)
+    color = forms.ChoiceField(choices=BADGE_COLOR_CHOICES)
+
+    def __init__(self, *args, **kwargs):
+        super(ActivityTypeForm, self).__init__(*args, **kwargs)
+        self.fields['code'].help_text = 'Uppercase, no spaces (e.g. SITE_VISIT)'
+
+    class Meta:
+        model = ActivityType
+        fields = ['code', 'name', 'description', 'icon', 'color', 'sort_order', 'is_active']
+
+
+class NextActionForm(FormSettings):
+    def __init__(self, *args, **kwargs):
+        super(NextActionForm, self).__init__(*args, **kwargs)
+        self.fields['code'].help_text = 'Uppercase, no spaces (e.g. SEND_BROCHURE)'
+
+    class Meta:
+        model = NextAction
+        fields = ['code', 'name', 'description', 'sort_order', 'is_active']
 
 
 class LeadForm(FormSettings):
@@ -137,10 +233,10 @@ class LeadForm(FormSettings):
     class Meta:
         model = Lead
         fields = [
-            'first_name', 'last_name', 'email', 'phone', 'school_name', 'position', 
+            'first_name', 'last_name', 'email', 'phone', 'alternate_phone', 'school_name', 'position', 
             'graduation_status', 'graduation_course', 'graduation_year', 'graduation_college',
             'course_interested', 'is_graduated', 'industry', 'source', 'status', 'priority', 'assigned_counsellor',
-            'expected_value', 'notes', 'address', 'city', 'state', 'country', 
+            'notes', 'address', 'city', 'state', 'country', 
             'postal_code', 'website', 'linkedin', 'next_follow_up'
         ]
         widgets = {
@@ -148,9 +244,70 @@ class LeadForm(FormSettings):
         }
 
 
+class CounsellorLeadForm(FormSettings):
+    """
+    Simplified lead form for counsellors to update key contact and follow-up details
+    without changing routing/source fields reserved for admins.
+    """
+    def __init__(self, *args, **kwargs):
+        super(CounsellorLeadForm, self).__init__(*args, **kwargs)
+        self.fields['graduation_year'].widget = forms.NumberInput(attrs={'min': '1950', 'max': '2030'})
+        self.fields['graduation_course'].required = False
+        self.fields['graduation_college'].required = False
+
+    class Meta:
+        model = Lead
+        fields = [
+            'first_name', 'last_name', 'email', 'phone', 'alternate_phone', 'school_name',
+            'graduation_status', 'graduation_course', 'graduation_year', 'graduation_college',
+            'course_interested', 'status', 'priority',
+            'notes', 'address', 'city', 'state', 'country',
+            'postal_code', 'next_follow_up'
+        ]
+        widgets = {
+            'next_follow_up': DateTimeInput(attrs={'type': 'datetime-local'}),
+        }
+
+
 class LeadActivityForm(FormSettings):
+    HAS_NEXT_ACTION_CHOICES = [('no', 'No'), ('yes', 'Yes')]
+
+    has_next_action = forms.ChoiceField(
+        choices=HAS_NEXT_ACTION_CHOICES,
+        initial='no',
+        required=False,
+        widget=forms.RadioSelect,
+        label='Is there a next action?',
+    )
+    followup_date = forms.DateTimeField(
+        required=False,
+        widget=DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}),
+        label='Next Follow-up Date',
+    )
+    followup_notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'What needs to be done next...'}),
+        label='Next Action Details',
+    )
+
     def __init__(self, *args, **kwargs):
         super(LeadActivityForm, self).__init__(*args, **kwargs)
+        try:
+            at_choices = ActivityType.get_choices()
+            if at_choices:
+                self.fields['activity_type'].choices = at_choices
+        except Exception:
+            pass
+        try:
+            na_choices = NextAction.get_choices()
+            if na_choices:
+                self.fields['next_action'] = forms.ChoiceField(
+                    choices=[('', '— Select Next Action —')] + list(na_choices),
+                    required=False,
+                    widget=forms.Select(attrs={'class': 'form-control'}),
+                )
+        except Exception:
+            pass
 
     class Meta:
         model = LeadActivity
@@ -160,6 +317,19 @@ class LeadActivityForm(FormSettings):
         ]
         widgets = {
             'scheduled_date': DateTimeInput(attrs={'type': 'datetime-local'}),
+        }
+
+
+class LeadAlternatePhoneForm(FormSettings):
+    def __init__(self, *args, **kwargs):
+        super(LeadAlternatePhoneForm, self).__init__(*args, **kwargs)
+
+    class Meta:
+        model = LeadAlternatePhone
+        fields = ['phone', 'label']
+        widgets = {
+            'phone': TextInput(attrs={'placeholder': 'Alternate phone number'}),
+            'label': TextInput(attrs={'placeholder': 'Relation (Father, Mother, etc.)'}),
         }
 
 
@@ -226,6 +396,34 @@ class LeadImportForm(forms.Form):
         label='Assign to Counsellor (Optional)'
     )
 
+    def clean_file(self):
+        uploaded = self.cleaned_data.get('file')
+        if not uploaded:
+            return uploaded
+
+        # Enforce extension whitelist
+        ext = os.path.splitext(uploaded.name)[1].lower()
+        allowed_exts = {'.csv', '.xlsx'}
+        if ext not in allowed_exts:
+            raise ValidationError("Unsupported file type. Only .csv and .xlsx files are allowed.")
+
+        # Enforce MIME type where available
+        content_type = getattr(uploaded, 'content_type', '') or ''
+        allowed_types = {
+            'text/csv',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        }
+        if content_type and content_type not in allowed_types:
+            raise ValidationError("Invalid MIME type for lead import file.")
+
+        # Enforce max size (server-side)
+        max_size_mb = getattr(settings, 'MAX_LEAD_IMPORT_MB', 10)
+        if uploaded.size > max_size_mb * 1024 * 1024:
+            raise ValidationError(f"File too large. Max size is {max_size_mb}MB.")
+
+        return uploaded
+
 
 class NotificationCounsellorForm(FormSettings):
     def __init__(self, *args, **kwargs):
@@ -242,7 +440,7 @@ class NotificationAdminForm(FormSettings):
 
     class Meta:
         model = NotificationAdmin
-        fields = ['message']
+        fields = ['admin', 'message']
 
 
 class CounsellorPerformanceForm(FormSettings):
@@ -259,3 +457,31 @@ class CounsellorPerformanceForm(FormSettings):
         widgets = {
             'month': DateInput(attrs={'type': 'date'}),
         }
+
+
+class DailyTargetForm(forms.Form):
+    """Simple form: just a number + date + who to assign."""
+    ASSIGN_MODE_CHOICES = [
+        ('all', 'All Counsellors'),
+        ('selected', 'Selected Counsellors'),
+    ]
+
+    target_count = forms.IntegerField(
+        min_value=1, initial=100,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g. 100'}),
+        label='Number of tasks',
+    )
+    target_date = forms.DateField(
+        widget=DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+        label='Date',
+    )
+    assign_mode = forms.ChoiceField(
+        choices=ASSIGN_MODE_CHOICES,
+        widget=forms.RadioSelect,
+        initial='all',
+    )
+    counsellors = forms.ModelMultipleChoiceField(
+        queryset=Counsellor.objects.filter(is_active=True).select_related('admin'),
+        widget=forms.CheckboxSelectMultiple,
+        required=False,
+    )

@@ -1,5 +1,6 @@
 {% extends 'main_app/base.html' %}
 {% load static %}
+{% load lead_tags %}
 {% block page_title %}{{page_title}}{% endblock page_title %}
 {% block content_title %}{{page_title}}{% endblock content_title %}
 
@@ -18,17 +19,7 @@
                             <div class="form-group">
                                 <label>Current Status</label>
                                 <p class="form-control-static">
-                                    {% if lead.status == 'NEW' %}
-                                        <span class="badge badge-info">New</span>
-                                    {% elif lead.status == 'CONTACTED' %}
-                                        <span class="badge badge-warning">Contacted</span>
-                                    {% elif lead.status == 'QUALIFIED' %}
-                                        <span class="badge badge-success">Qualified</span>
-                                    {% elif lead.status == 'CLOSED_WON' %}
-                                        <span class="badge badge-primary">Closed Won</span>
-                                    {% elif lead.status == 'CLOSED_LOST' %}
-                                        <span class="badge badge-danger">Closed Lost</span>
-                                    {% endif %}
+                                    {% status_badge lead.status %}
                                 </p>
                             </div>
                             <div class="form-group">

@@ -37,10 +37,28 @@ class LeadSourceAdmin(admin.ModelAdmin):
     search_fields = ('name', 'description')
     ordering = ('name',)
 
+class LeadStatusAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'color', 'is_active', 'is_system', 'sort_order', 'created_at')
+    list_filter = ('is_active', 'is_system')
+    search_fields = ('code', 'name')
+    ordering = ('sort_order', 'name')
+
+class ActivityTypeAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'icon', 'color', 'is_active', 'is_system', 'sort_order', 'created_at')
+    list_filter = ('is_active', 'is_system')
+    search_fields = ('code', 'name')
+    ordering = ('sort_order', 'name')
+
+class NextActionAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'is_active', 'is_system', 'sort_order', 'created_at')
+    list_filter = ('is_active', 'is_system')
+    search_fields = ('code', 'name')
+    ordering = ('sort_order', 'name')
+
 class LeadAdmin(admin.ModelAdmin):
-    list_display = ('lead_id', 'first_name', 'last_name', 'email', 'phone', 'school_name', 'source', 'status', 'priority', 'assigned_counsellor', 'expected_value', 'created_at')
+    list_display = ('lead_id', 'first_name', 'last_name', 'email', 'phone', 'alternate_phone', 'school_name', 'source', 'status', 'priority', 'assigned_counsellor', 'created_at')
     list_filter = ('status', 'priority', 'source', 'assigned_counsellor', 'created_at')
-    search_fields = ('lead_id', 'first_name', 'last_name', 'email', 'phone', 'school_name')
+    search_fields = ('lead_id', 'first_name', 'last_name', 'email', 'phone', 'alternate_phone', 'school_name')
     ordering = ('-created_at',)
     readonly_fields = ('lead_id', 'created_at')
     actions = ['view_lead_details']
@@ -88,15 +106,18 @@ class NotificationCounsellorAdmin(admin.ModelAdmin):
     ordering = ('-created_at',)
 
 class NotificationAdminAdmin(admin.ModelAdmin):
-    list_display = ('message', 'created_at', 'is_read')
-    list_filter = ('is_read', 'created_at')
-    search_fields = ('message',)
+    list_display = ('admin', 'message', 'created_at', 'is_read')
+    list_filter = ('is_read', 'created_at', 'admin')
+    search_fields = ('admin__first_name', 'admin__last_name', 'admin__email', 'message')
     ordering = ('-created_at',)
 
 # Register models
 admin.site.register(CustomUser, UserModel)
 admin.site.register(Counsellor, CounsellorAdmin)
 admin.site.register(LeadSource, LeadSourceAdmin)
+admin.site.register(LeadStatus, LeadStatusAdmin)
+admin.site.register(ActivityType, ActivityTypeAdmin)
+admin.site.register(NextAction, NextActionAdmin)
 admin.site.register(Lead, LeadAdmin)
 admin.site.register(LeadActivity, LeadActivityAdmin)
 admin.site.register(Business, BusinessAdmin)
@@ -104,3 +125,5 @@ admin.site.register(LeadTransfer, LeadTransferAdmin)
 admin.site.register(CounsellorPerformance, CounsellorPerformanceAdmin)
 admin.site.register(NotificationCounsellor, NotificationCounsellorAdmin)
 admin.site.register(NotificationAdmin, NotificationAdminAdmin)
+admin.site.register(DailyTarget)
+admin.site.register(DailyTargetAssignment)

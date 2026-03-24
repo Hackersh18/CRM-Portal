@@ -1,0 +1,103 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Manage Next Actions</h3>
+                        <div class="card-tools">
+                            <a href="{% url 'add_next_action' %}" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Add Next Action
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        {% if next_actions %}
+                        <table id="example1" class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Name</th>
+                                    <th>Description</th>
+                                    <th>Usage</th>
+                                    <th>Status</th>
+                                    <th>System</th>
+                                    <th>Sort</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for a in next_actions %}
+                                <tr>
+                                    <td><code>{{a.code}}</code></td>
+                                    <td>{{a.name}}</td>
+                                    <td>{{a.description|default:"-"}}</td>
+                                    <td><span class="badge badge-info">{{a.usage_count}} activities</span></td>
+                                    <td>
+                                        {% if a.is_active %}
+                                            <span class="badge badge-success">Active</span>
+                                        {% else %}
+                                            <span class="badge badge-danger">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if a.is_system %}
+                                            <span class="badge badge-warning"><i class="fas fa-lock"></i> System</span>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{a.sort_order}}</td>
+                                    <td>
+                                        <a href="{% url 'edit_next_action' a.id %}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-edit"></i> Edit
+                                        </a>
+                                        {% if not a.is_system %}
+                                        <form action="{% url 'delete_next_action' a.id %}" method="post" style="display:inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-danger"
+                                                onclick="return confirm('Are you sure you want to delete this next action?')">
+                                                <i class="fas fa-trash"></i> Delete
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p class="text-muted text-center py-4 mb-0">
+                            <i class="fas fa-info-circle"></i> No next actions found.
+                            <a href="{% url 'add_next_action' %}">Add your first next action</a>
+                        </p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block custom_js %}
+<script>
+    $(function () {
+        {% if next_actions %}
+        $("#example1").DataTable({
+            "responsive": false,
+            "scrollX": true,
+            "lengthChange": false,
+            "autoWidth": false,
+            "buttons": ["copy", "csv", "excel", "pdf", "print", "colvis"]
+        }).buttons().container().appendTo('#example1_wrapper .col-md-6:eq(0)');
+        {% endif %}
+    });
+</script>
+{% endblock custom_js %}

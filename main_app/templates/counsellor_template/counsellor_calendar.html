@@ -1,0 +1,212 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+{% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block custom_css %}
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.5/main.min.css' rel='stylesheet' />
+<style>
+    #calendar {
+        max-width: 100%;
+        margin: 0 auto;
+        background-color: #fff;
+        padding: 20px;
+        border-radius: 5px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .fc-event {
+        cursor: pointer;
+    }
+    
+    .fc-event-title {
+        font-weight: 600;
+    }
+    
+    .calendar-legend {
+        margin-bottom: 20px;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+    }
+    
+    .calendar-legend-item {
+        display: inline-block;
+        margin-right: 20px;
+    }
+    
+    .legend-color {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border-radius: 3px;
+        margin-right: 8px;
+        vertical-align: middle;
+    }
+    
+    .legend-activity {
+        background-color: #007bff;
+    }
+    
+    .legend-followup {
+        background-color: #28a745;
+    }
+</style>
+{% endblock custom_css %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-calendar-alt"></i> My Calendar</h3>
+                        <div class="card-tools">
+                            <a href="{% url 'counsellor_home' %}" class="btn btn-sm btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Back to Dashboard
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Legend -->
+                        <div class="calendar-legend">
+                            <div class="calendar-legend-item">
+                                <span class="legend-color legend-activity"></span>
+                                <span>Activities</span>
+                            </div>
+                            <div class="calendar-legend-item">
+                                <span class="legend-color legend-followup"></span>
+                                <span>Visits</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Calendar -->
+                        <div id="calendar"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Event Details Modal -->
+<div class="modal fade" id="eventModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventModalTitle">Event Details</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="eventModalBody">
+                <!-- Event details will be populated here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <a href="#" id="eventModalEditLink" class="btn btn-warning" style="display:none;">
+                    <i class="fas fa-edit"></i> Edit Activity
+                </a>
+                <a href="#" id="eventModalLink" class="btn btn-primary" style="display:none;">View Lead</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block custom_js %}
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.5/main.min.js'></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var calendarEl = document.getElementById('calendar');
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+            },
+            events: function(fetchInfo, successCallback, failureCallback) {
+                // Fetch events from the API
+                fetch('{% url "get_calendar_events" %}?start=' + fetchInfo.startStr + '&end=' + fetchInfo.endStr)
+                    .then(response => response.json())
+                    .then(data => {
+                        successCallback(data);
+                    })
+                    .catch(error => {
+                        console.error('Error fetching calendar events:', error);
+                        failureCallback(error);
+                    });
+            },
+            eventClick: function(info) {
+                var event = info.event;
+                var extendedProps = event.extendedProps;
+                
+                // Set modal title
+                document.getElementById('eventModalTitle').textContent = event.title;
+                
+                // Build modal body content
+                var modalBody = '<div class="event-details">';
+                modalBody += '<p><strong>Type:</strong> ' + (extendedProps.type === 'activity' ? 'Activity' : 'Visit') + '</p>';
+                modalBody += '<p><strong>Lead:</strong> ' + extendedProps.lead_name + '</p>';
+                
+                if (extendedProps.type === 'activity') {
+                    modalBody += '<p><strong>Description:</strong> ' + (extendedProps.description || 'N/A') + '</p>';
+                } else {
+                    modalBody += '<p><strong>Course Interested:</strong> ' + (extendedProps.course_interested || 'N/A') + '</p>';
+                }
+                
+                // Format date
+                var startDate = new Date(event.start);
+                var dateStr = startDate.toLocaleDateString() + ' ' + startDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                modalBody += '<p><strong>Date:</strong> ' + dateStr + '</p>';
+                if (event.end && !event.allDay) {
+                    var endDate = new Date(event.end);
+                    var endStr = endDate.toLocaleDateString() + ' ' + endDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    modalBody += '<p><strong>End:</strong> ' + endStr + '</p>';
+                }
+                modalBody += '</div>';
+                
+                document.getElementById('eventModalBody').innerHTML = modalBody;
+                
+                // Set link to lead detail page
+                var leadId = extendedProps.lead_id;
+                var link = document.getElementById('eventModalLink');
+                var editLink = document.getElementById('eventModalEditLink');
+                
+                // Hide both links initially
+                link.style.display = 'none';
+                editLink.style.display = 'none';
+                
+                if (leadId) {
+                    link.href = '{% url "lead_detail" 0 %}'.replace('0', leadId);
+                    link.style.display = 'inline-block';
+                }
+                
+                // Show edit button for activities
+                if (extendedProps.type === 'activity' && extendedProps.activity_id && leadId) {
+                    var editUrl = '/counsellor/leads/' + leadId + '/activity/' + extendedProps.activity_id + '/edit/';
+                    editLink.href = editUrl;
+                    editLink.style.display = 'inline-block';
+                }
+                
+                // Show modal
+                $('#eventModal').modal('show');
+            },
+            eventDisplay: 'block',
+            height: 'auto',
+            navLinks: true,
+            dayMaxEvents: true,
+            moreLinkClick: 'popover',
+            eventTimeFormat: {
+                hour: '2-digit',
+                minute: '2-digit',
+                meridiem: 'short'
+            }
+        });
+        
+        calendar.render();
+    });
+</script>
+{% endblock custom_js %}

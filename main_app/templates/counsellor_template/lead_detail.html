@@ -1,7 +1,64 @@
 {% extends 'main_app/base.html' %}
 {% load static %}
+{% load lead_tags %}
 {% block page_title %}{{page_title}}{% endblock page_title %}
 {% block content_title %}{{page_title}}{% endblock content_title %}
+
+{% block custom_css %}
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.5/main.min.css' rel='stylesheet' />
+<style>
+    #lead-calendar {
+        padding: 10px;
+    }
+    
+    #lead-calendar .fc-event {
+        cursor: pointer;
+        font-size: 0.85rem;
+        margin: 2px 0;
+        border-radius: 3px;
+    }
+    
+    #lead-calendar .fc-event-title {
+        font-weight: 500;
+        padding: 2px 4px;
+    }
+    
+    #lead-calendar .fc-daygrid-day-frame {
+        min-height: 80px;
+    }
+    
+    #lead-calendar .fc-col-header-cell {
+        padding: 8px 4px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+    
+    #lead-calendar .fc-daygrid-day-number {
+        font-size: 0.9rem;
+        padding: 4px;
+        font-weight: 500;
+    }
+    
+    #lead-calendar .fc-toolbar-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+    }
+    
+    #lead-calendar .fc-button {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.9rem;
+    }
+    
+    #lead-calendar .fc-day-today {
+        background-color: #fff3cd;
+    }
+
+    /* Give all card headers a subtle grey background on this page */
+    .card-header {
+        background-color: #c3c3c5;
+    }
+</style>
+{% endblock custom_css %}
 
 {% block content %}
 <section class="content">
@@ -11,11 +68,15 @@
                 <!-- Lead Information -->
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">Lead Information</h3>
+                        <h3 class="card-title"> <label><strong> Information</strong></label></h3>
                     </div>
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-6">
+                                <div class="form-group">
+                                    <label><strong>Lead ID:</strong></label>
+                                    <p>{{ lead.lead_id }}</p>
+                                </div>
                                 <div class="form-group">
                                     <label><strong>Name:</strong></label>
                                     <p>{{lead.first_name}} {{lead.last_name}}</p>
@@ -26,7 +87,60 @@
                                 </div>
                                 <div class="form-group">
                                     <label><strong>Phone:</strong></label>
-                                    <p>{{lead.phone}}</p>
+                                    <p>
+                                        {% if lead.phone %}
+                                            <span id="masked-phone-detail">
+                                                ****{{ lead.phone|slice:"-3:" }}
+                                            </span>
+                                            <button type="button"
+                                                    class="btn btn-xs btn-outline-secondary ml-1"
+                                                    id="reveal-phone-detail-btn">
+                                                View
+                                            </button>
+                                        {% else %}
+                                            <span class="text-muted">Not provided</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Alternate Phone:</strong></label>
+                                    <p>
+                                        {% if lead.alternate_phone %}
+                                            <span id="masked-alt-primary">****{{ lead.alternate_phone|slice:"-3:" }}</span>
+                                            <button type="button" class="btn btn-xs btn-outline-secondary ml-1 reveal-alt-phone-btn" data-which="primary" data-masked-id="masked-alt-primary">
+                                                View
+                                            </button>
+                                        {% else %}
+                                            <span class="text-muted">Not provided</span>
+                                        {% endif %}
+                                    </p>
+                                    {% if lead.alternate_phones.all %}
+                                        <ul class="list-unstyled mb-2">
+                                            {% for alt in lead.alternate_phones.all %}
+                                                <li>
+                                                    <span id="masked-alt-{{ alt.id }}">****{{ alt.phone|slice:"-3:" }}</span>
+                                                    <button type="button" class="btn btn-xs btn-outline-secondary ml-1 reveal-alt-phone-btn" data-which="{{ alt.id }}" data-masked-id="masked-alt-{{ alt.id }}">
+                                                        View
+                                                    </button>
+                                                    {% if alt.label %}
+                                                        <span class="text-muted">({{ alt.label }})</span>
+                                                    {% endif %}
+                                                </li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                    <form action="{% url 'add_alternate_phone' lead.id %}" method="post" class="form-inline mt-2">
+                                        {% csrf_token %}
+                                        <div class="form-group mb-2 mr-2">
+                                            <input type="text" name="phone" class="form-control form-control-sm" placeholder="Alt phone" required>
+                                        </div>
+                                        <div class="form-group mb-2 mr-2">
+                                            <input type="text" name="label" class="form-control form-control-sm" placeholder="Relation (optional)">
+                                        </div>
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary mb-2">
+                                            <i class="fas fa-plus"></i> Add Alternate
+                                        </button>
+                                    </form>
                                 </div>
                                 <div class="form-group">
                                     <label><strong>School Name:</strong></label>
@@ -36,22 +150,32 @@
                                     <label><strong>Position:</strong></label>
                                     <p>{{lead.position|default:"Not provided"}}</p>
                                 </div>
+                                <div class="form-group">
+                                    <label><strong>Course Interested:</strong></label>
+                                    <p>{{ lead.course_interested|default:"Not provided" }}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Graduation Status:</strong></label>
+                                    <p>{{ lead.get_graduation_status_display }}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Graduation Course:</strong></label>
+                                    <p>{{ lead.graduation_course|default:"Not specified" }}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Graduation Year:</strong></label>
+                                    <p>{{ lead.graduation_year|default:"Not specified" }}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Graduation College:</strong></label>
+                                    <p>{{ lead.graduation_college|default:"Not specified" }}</p>
+                                </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label><strong>Status:</strong></label>
                                     <p>
-                                        {% if lead.status == 'NEW' %}
-                                            <span class="badge badge-info">New</span>
-                                        {% elif lead.status == 'CONTACTED' %}
-                                            <span class="badge badge-warning">Contacted</span>
-                                        {% elif lead.status == 'QUALIFIED' %}
-                                            <span class="badge badge-success">Qualified</span>
-                                        {% elif lead.status == 'CLOSED_WON' %}
-                                            <span class="badge badge-primary">Closed Won</span>
-                                        {% elif lead.status == 'CLOSED_LOST' %}
-                                            <span class="badge badge-danger">Closed Lost</span>
-                                        {% endif %}
+                                        {% status_badge lead.status %}
                                     </p>
                                 </div>
                                 <div class="form-group">
@@ -69,10 +193,6 @@
                                     </p>
                                 </div>
                                 <div class="form-group">
-                                    <label><strong>Expected Value:</strong></label>
-                                    <p>₹{{lead.expected_value}}</p>
-                                </div>
-                                <div class="form-group">
                                     <label><strong>Conversion Score:</strong></label>
                                     <p>
                                         {% if lead.conversion_score is not None %}
@@ -86,6 +206,42 @@
                                     <label><strong>Source:</strong></label>
                                     <p>{{lead.source.name}}</p>
                                 </div>
+                                <div class="form-group">
+                                    <label><strong>Address:</strong></label>
+                                    <p>
+                                        {{ lead.address|default:"" }}
+                                        {% if lead.city %}<br>{{ lead.city }}{% endif %}
+                                        {% if lead.state %}, {{ lead.state }}{% endif %}
+                                        {% if lead.country %}, {{ lead.country }}{% endif %}
+                                        {% if not lead.address and not lead.city and not lead.state and not lead.country %}
+                                            Not provided
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Postal Code:</strong></label>
+                                    <p>{{ lead.postal_code|default:"Not provided" }}</p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Last Contact:</strong></label>
+                                    <p>
+                                        {% if lead.last_contact_date %}
+                                            {{ lead.last_contact_date|date:"M d, Y H:i" }}
+                                        {% else %}
+                                            <span class="text-muted">Never</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div class="form-group">
+                                    <label><strong>Next Visit Date:</strong></label>
+                                    <p>
+                                        {% if lead.next_follow_up %}
+                                            {{ lead.next_follow_up|date:"M d, Y H:i" }}
+                                        {% else %}
+                                            <span class="text-muted">Not scheduled</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
                             </div>
                         </div>
                         <div class="form-group">
@@ -98,53 +254,101 @@
                 <!-- Activities -->
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">Activities</h3>
+                        <h3 class="card-title"><label><strong> Activities </strong></label></h3>
                         <div class="card-tools">
+                            <button type="button" class="btn btn-sm btn-info mr-2" onclick="toggleView()">
+                                <i class="fas fa-calendar-alt"></i> <span id="view-toggle-text">Calendar View</span>
+                            </button>
                             <a href="{% url 'add_lead_activity' lead.id %}" class="btn btn-primary btn-sm">
                                 <i class="fas fa-plus"></i> Add Activity
                             </a>
                         </div>
                     </div>
                     <div class="card-body">
-                        {% if activities %}
-                            <div class="timeline">
-                                {% for activity in activities %}
-                                <div class="time-label">
-                                    <span class="bg-blue">{{activity.scheduled_date|date:"M d, Y"}}</span>
-                                </div>
-                                <div>
-                                    <i class="fas fa-tasks bg-green"></i>
-                                    <div class="timeline-item">
-                                        <span class="time"><i class="fas fa-clock"></i> {{activity.scheduled_date|time:"H:i"}}</span>
-                                        <h3 class="timeline-header">{{activity.get_activity_type_display}}</h3>
-                                        <div class="timeline-body">
-                                            <strong>{{activity.subject}}</strong><br>
-                                            {{activity.description}}<br>
-                                            <small>Duration: {{activity.duration}} min</small>
-                                        </div>
+                        <!-- Timeline View -->
+                        <div id="timeline-view">
+                            {% if activities %}
+                                <div class="timeline">
+                                    {% for activity in activities %}
+                                    <div class="time-label">
+                                        <span class="bg-blue">{{activity.scheduled_date|date:"M d, Y"}}</span>
+                                    </div>
+                                    <div>
+                                        <i class="fas fa-tasks bg-green"></i>
+                                        <div class="timeline-item">
+                                            <span class="time"><i class="fas fa-clock"></i> {{activity.scheduled_date|time:"H:i"}}</span>
+                                            <h3 class="timeline-header">{% activity_type_badge activity.activity_type %}</h3>
+                                            <div class="timeline-body">
+                                                <strong>{{activity.subject}}</strong><br>
+                                                {{activity.description}}<br>
+                                                <small>Duration: {{activity.duration}} min</small>
+                                                {% if activity.outcome %}<br><small><strong>Outcome:</strong> {{activity.outcome}}</small>{% endif %}
+                                                {% if activity.next_action %}<br><small><strong>Next Action:</strong> <span class="badge badge-warning badge-sm"><i class="fas fa-forward mr-1"></i>{% next_action_name activity.next_action %}</span></small>{% endif %}
+                                            </div>
                                         <div class="timeline-footer">
                                             {% if activity.is_completed %}
                                                 <span class="badge badge-success">Completed</span>
                                             {% else %}
                                                 <span class="badge badge-warning">Pending</span>
+                                                <form action="{% url 'mark_activity_complete' lead.id activity.id %}" method="post" style="display:inline-block;" class="ml-2">
+                                                    {% csrf_token %}
+                                                    <button type="submit" class="btn btn-sm btn-success" title="Mark as Complete">
+                                                        <i class="fas fa-check"></i> Mark Complete
+                                                    </button>
+                                                </form>
                                             {% endif %}
+                                            <a href="{% url 'edit_lead_activity' lead.id activity.id %}" class="btn btn-sm btn-info ml-2" title="Edit Activity">
+                                                <i class="fas fa-edit"></i> Edit
+                                            </a>
+                                            <form action="{% url 'delete_lead_activity' lead.id activity.id %}" method="post" style="display:inline;">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-danger ml-1" title="Delete Activity" onclick="return confirm('Delete this activity?')">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
                                         </div>
                                     </div>
+                                    {% endfor %}
                                 </div>
-                                {% endfor %}
-                            </div>
-                        {% else %}
-                            <p class="text-muted">No activities logged yet.</p>
-                        {% endif %}
+                            {% else %}
+                                <p class="text-muted">No activities logged yet.</p>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Calendar View -->
+                        <div id="calendar-view" style="display: none;">
+                            <div id="lead-calendar" style="height: 500px;"></div>
+                        </div>
                     </div>
                 </div>
             </div>
             
             <div class="col-md-4">
+                <!-- Next Visit Date -->
+                {% if lead.next_follow_up %}
+                <div class="card">
+                    <div class="card-header bg-success">
+                        <h3 class="card-title text-white">
+                            <i class="fas fa-calendar-check"></i> Next Visit Date
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <p><strong>Scheduled:</strong> {{lead.next_follow_up|date:"M d, Y"}} at {{lead.next_follow_up|time:"H:i"}}</p>
+                        <form action="{% url 'mark_followup_complete' lead.id %}" method="post">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-success btn-block" onclick="return confirm('Mark this visit as completed?')">
+                                <i class="fas fa-check"></i> Mark Visit as Complete
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+                
                 <!-- Quick Actions -->
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">Quick Actions</h3>
+                        <h3 class="card-title"><label><strong> Quick Action</strong></label></h3>
                     </div>
                     <div class="card-body">
                         <div class="btn-group-vertical w-100">
@@ -155,7 +359,7 @@
                                 <i class="fas fa-plus"></i> Add Activity
                             </a>
                             <button type="button" class="btn btn-warning mb-2" data-toggle="modal" data-target="#scheduleFollowUpModal">
-                                <i class="fas fa-calendar"></i> Schedule Follow-up
+                                <i class="fas fa-calendar"></i> {% if lead.next_follow_up %}Reschedule Visit{% else %}Schedule Visit{% endif %}
                             </button>
                             <a href="{% url 'evaluate_conversion_score' lead.id %}" class="btn btn-outline-primary mb-2">
                                 <i class="fas fa-magic"></i> Evaluate Conversion Score
@@ -178,7 +382,7 @@
                 <!-- Lead Timeline -->
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">Timeline</h3>
+                        <h3 class="card-title"><label><strong> Timeline</strong></label></h3>
                     </div>
                     <div class="card-body">
                         <div class="timeline">
@@ -228,14 +432,9 @@
                     <div class="form-group">
                         <label for="status">Select new status</label>
                         <select id="status" name="status" class="form-control" required>
-                            <option value="NEW" {% if lead.status == 'NEW' %}selected{% endif %}>New</option>
-                            <option value="CONTACTED" {% if lead.status == 'CONTACTED' %}selected{% endif %}>Contacted</option>
-                            <option value="QUALIFIED" {% if lead.status == 'QUALIFIED' %}selected{% endif %}>Qualified</option>
-                            <option value="PROPOSAL_SENT" {% if lead.status == 'PROPOSAL_SENT' %}selected{% endif %}>Proposal Sent</option>
-                            <option value="NEGOTIATION" {% if lead.status == 'NEGOTIATION' %}selected{% endif %}>Negotiation</option>
-                            <option value="CLOSED_WON" {% if lead.status == 'CLOSED_WON' %}selected{% endif %}>Closed Won</option>
-                            <option value="CLOSED_LOST" {% if lead.status == 'CLOSED_LOST' %}selected{% endif %}>Closed Lost</option>
-                            <option value="TRANSFERRED" {% if lead.status == 'TRANSFERRED' %}selected{% endif %}>Transferred</option>
+                            {% for status_code, status_name in lead_status_choices %}
+                                <option value="{{ status_code }}" {% if lead.status == status_code %}selected{% endif %}>{{ status_name }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                 </div>
@@ -252,7 +451,7 @@
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="scheduleFollowUpLabel">Schedule Follow-up</h5>
+                <h5 class="modal-title" id="scheduleFollowUpLabel">Schedule Visit</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
@@ -261,7 +460,7 @@
                 {% csrf_token %}
                 <div class="modal-body">
                     <div class="form-group">
-                        <label for="follow_up_date">Follow-up date and time</label>
+                        <label for="follow_up_date">Visit Date & Time</label>
                         <input type="datetime-local" class="form-control" id="follow_up_date" name="follow_up_date" required>
                     </div>
                 </div>
@@ -273,4 +472,237 @@
         </div>
     </div>
 </div>
+
+{% block custom_js %}
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.5/main.min.js'></script>
+<script>
+    let calendar = null;
+    let isCalendarView = false;
+    
+    function toggleView() {
+        const timelineView = document.getElementById('timeline-view');
+        const calendarView = document.getElementById('calendar-view');
+        const toggleText = document.getElementById('view-toggle-text');
+        
+        if (isCalendarView) {
+            // Switch to timeline view
+            timelineView.style.display = 'block';
+            calendarView.style.display = 'none';
+            toggleText.textContent = 'Calendar View';
+            isCalendarView = false;
+        } else {
+            // Switch to calendar view
+            timelineView.style.display = 'none';
+            calendarView.style.display = 'block';
+            toggleText.textContent = 'Timeline View';
+            isCalendarView = true;
+            
+            // Initialize calendar if not already done
+            if (!calendar) {
+                initializeCalendar();
+            } else {
+                calendar.render();
+            }
+        }
+    }
+    
+    function initializeCalendar() {
+        const calendarEl = document.getElementById('lead-calendar');
+        if (!calendarEl) return;
+        
+        calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+            },
+            events: function(fetchInfo, successCallback, failureCallback) {
+                fetch('{% url "get_lead_calendar_events" lead.id %}?start=' + fetchInfo.startStr + '&end=' + fetchInfo.endStr)
+                    .then(response => response.json())
+                    .then(data => {
+                        successCallback(data);
+                    })
+                    .catch(error => {
+                        console.error('Error fetching calendar events:', error);
+                        failureCallback(error);
+                    });
+            },
+            eventClick: function(info) {
+                const event = info.event;
+                const extendedProps = event.extendedProps;
+                
+                // Create modal for event details
+                let modalHtml = `
+                    <div class="modal fade" id="eventDetailModal" tabindex="-1" role="dialog">
+                        <div class="modal-dialog" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header ${extendedProps.type === 'activity' ? 'bg-primary' : 'bg-info'}">
+                                    <h5 class="modal-title text-white">
+                                        <i class="fas fa-${extendedProps.type === 'activity' ? 'tasks' : 'calendar'}"></i> 
+                                        ${event.title}
+                                    </h5>
+                                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                </div>
+                                <div class="modal-body">
+                `;
+                
+                if (extendedProps.type === 'activity') {
+                    modalHtml += `
+                        <p><strong>Type:</strong> Activity</p>
+                        <p><strong>Description:</strong> ${extendedProps.description || 'No description'}</p>
+                        <p><strong>Outcome:</strong> ${extendedProps.outcome || 'N/A'}</p>
+                        <p><strong>Status:</strong> 
+                            <span class="badge badge-${extendedProps.is_completed ? 'success' : 'warning'}">
+                                ${extendedProps.status}
+                            </span>
+                        </p>
+                        <p><strong>Duration:</strong> ${extendedProps.duration} minutes</p>
+                        <p><strong>Time:</strong> ${event.start.toLocaleString()}</p>
+                        ${event.end ? `<p><strong>End Time:</strong> ${event.end.toLocaleString()}</p>` : ''}
+                    `;
+                    
+                    if (extendedProps.activity_id) {
+                        modalHtml += `
+                            <div class="mt-3">
+                                <a href="{% url 'edit_lead_activity' lead.id 0 %}" class="btn btn-primary">
+                                    <i class="fas fa-edit"></i> Edit Activity
+                                </a>
+                            </div>
+                        `;
+                        // Replace 0 with actual activity_id
+                        modalHtml = modalHtml.replace('0', extendedProps.activity_id);
+                    }
+                } else {
+                    const leadName = '{{ lead.first_name }} {{ lead.last_name }}';
+                    modalHtml += `
+                        <p><strong>Type:</strong> Visit</p>
+                        <p><strong>Lead:</strong> ${leadName}</p>
+                        <p><strong>Course Interested:</strong> ${extendedProps.course_interested || 'N/A'}</p>
+                        <p><strong>School Name:</strong> ${extendedProps.school_name || 'N/A'}</p>
+                        <p><strong>Date:</strong> ${event.start.toLocaleDateString()}</p>
+                        <div class="mt-3">
+                            <form action="{% url 'mark_followup_complete' lead.id %}" method="post" style="display:inline-block;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-success" onclick="return confirm('Mark this visit as completed?')">
+                                    <i class="fas fa-check"></i> Mark Visit as Complete
+                                </button>
+                            </form>
+                        </div>
+                    `;
+                }
+                
+                modalHtml += `
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Remove existing modal if present
+                const existingModal = document.getElementById('eventDetailModal');
+                if (existingModal) {
+                    existingModal.remove();
+                }
+                
+                // Add modal to body
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                
+                // Show modal
+                $('#eventDetailModal').modal('show');
+                
+                // Remove modal from DOM when closed
+                $('#eventDetailModal').on('hidden.bs.modal', function() {
+                    $(this).remove();
+                });
+            },
+            height: 'auto',
+            navLinks: true,
+            dayMaxEvents: true,
+            moreLinkClick: 'popover',
+            eventDisplay: 'block',
+            eventTimeFormat: {
+                hour: '2-digit',
+                minute: '2-digit',
+                meridiem: 'short'
+            },
+            aspectRatio: 1.5
+        });
+        
+        calendar.render();
+    }
+
+    // Click-to-reveal phone on lead detail
+    document.addEventListener('DOMContentLoaded', function () {
+        var btn = document.getElementById('reveal-phone-detail-btn');
+        if (btn) {
+            btn.addEventListener('click', function () {
+                var url = "{% url 'reveal_phone' lead.id %}";
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                })
+                .then(function (resp) { return resp.json(); })
+                .then(function (data) {
+                    if (data.phone) {
+                        var el = document.getElementById('masked-phone-detail');
+                        el.textContent = '';
+                        var a = document.createElement('a');
+                        a.href = 'tel:' + data.phone;
+                        a.className = 'text-primary';
+                        a.innerHTML = '<i class="fas fa-phone mr-1"></i>' + data.phone;
+                        el.appendChild(a);
+                        btn.parentNode.removeChild(btn);
+                    }
+                })
+                .catch(function (err) { console.error('Error revealing phone:', err); });
+            });
+        }
+        // Click-to-reveal alternate phone(s)
+        var altRevealUrl = "{% url 'reveal_alternate_phone' lead.id %}";
+        var csrfToken = '{{ csrf_token }}';
+        document.querySelectorAll('.reveal-alt-phone-btn').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var which = this.getAttribute('data-which');
+                var maskedId = this.getAttribute('data-masked-id');
+                var form = new FormData();
+                form.append('which', which);
+                form.append('csrfmiddlewaretoken', csrfToken);
+                fetch(altRevealUrl, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: form,
+                })
+                .then(function (resp) { return resp.json(); })
+                .then(function (data) {
+                    if (data.phone !== undefined) {
+                        var el = document.getElementById(maskedId);
+                        if (el) {
+                            el.textContent = '';
+                            if (data.phone) {
+                                var a = document.createElement('a');
+                                a.href = 'tel:' + data.phone;
+                                a.className = 'text-primary';
+                                a.innerHTML = '<i class="fas fa-phone mr-1"></i>' + data.phone;
+                                el.appendChild(a);
+                            }
+                        }
+                        b.parentNode.removeChild(b);
+                    }
+                })
+                .catch(function (err) { console.error('Error revealing alternate phone:', err); });
+            });
+        });
+    });
+</script>
+{% endblock custom_js %}
+
 {% endblock content %}
