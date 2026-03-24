@@ -15,6 +15,8 @@ import os
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
+from typing import Optional
+
 from django.core.exceptions import ImproperlyConfigured
 
 # Load environment variables from .env file for local/dev.
@@ -43,7 +45,16 @@ def _running_management_command(*names: str) -> bool:
     return len(sys.argv) >= 2 and sys.argv[1] in names
 
 
-SECRET_KEY = os.environ.get("SECRET_KEY")
+def _secret_key_from_env() -> Optional[str]:
+    """First non-empty SECRET_KEY or DJANGO_SECRET_KEY (Render/docs use both names)."""
+    for name in ("SECRET_KEY", "DJANGO_SECRET_KEY"):
+        val = os.environ.get(name)
+        if val is not None and str(val).strip():
+            return str(val).strip()
+    return None
+
+
+SECRET_KEY = _secret_key_from_env()
 if not SECRET_KEY:
     if _running_management_command(
         "collectstatic", "migrate", "makemigrations", "check"
@@ -51,8 +62,9 @@ if not SECRET_KEY:
         SECRET_KEY = _DUMMY_BUILD_SECRET
     else:
         raise ImproperlyConfigured(
-            "SECRET_KEY environment variable is required. "
-            "On Render: Dashboard → your service → Environment → add SECRET_KEY."
+            "Set a non-empty SECRET_KEY (or DJANGO_SECRET_KEY). "
+            "On Render with render.yaml: Environment Groups → open 'crm-secrets' → add SECRET_KEY, "
+            "or add SECRET_KEY under your web service → Environment."
         )
 
 # DJANGO_DEBUG=True  -> DEBUG = True  (local/dev)

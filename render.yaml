@@ -11,6 +11,7 @@ services:
         value: college_management_system.settings
       - key: DJANGO_DEBUG
         value: "False"
+      # crm-secrets must include SECRET_KEY (and DATABASE_URL, etc.). Same group is used by the worker — use one shared key.
       - fromGroup: crm-secrets
 
   - type: database
