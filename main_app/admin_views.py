@@ -1,6 +1,10 @@
 import json
+import logging
+import uuid
 import pandas as pd
 from datetime import datetime, timedelta
+
+from django.db import transaction
 from django.contrib import messages
 from django.core.files.storage import FileSystemStorage
 from django.http import HttpResponse, JsonResponse
@@ -15,13 +19,87 @@ from django.contrib.auth.hashers import make_password
 from django.db.models import Count, Sum, Avg, Q, Case, When, Value, DecimalField
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
-import logging
 
 from .forms import *
 from .models import *
 from .utils import paginate_queryset, user_type_required, admin_perm_required, get_counsellor_activity_snapshot
 
 admin_required = user_type_required('1')
+
+logger = logging.getLogger(__name__)
+
+
+def _import_cell_str(row, key, default=""):
+    """Normalize pandas cell to a clean string (handles NaN / numeric cells)."""
+    if key not in row.index:
+        return default
+    val = row[key]
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return default
+    s = str(val).strip()
+    return s if s else default
+
+
+def _new_import_lead_id():
+    """Match Lead.save() format but longer suffix to avoid collisions on bulk import."""
+    return f"L-{datetime.now().strftime('%y%m%d')}-{uuid.uuid4().hex[:8].upper()}"
+
+
+def _build_lead_from_import_row(row, source, assigned_counsellor):
+    """Construct an unsaved Lead from one dataframe row (raises on bad data)."""
+    raw_gs = row.get("graduation_status", "NO")
+    if pd.isna(raw_gs):
+        graduation_status = "NO"
+    else:
+        graduation_status = str(raw_gs).strip().upper()
+        if graduation_status not in ("YES", "NO"):
+            graduation_status = "NO"
+
+    if graduation_status == "NO":
+        graduation_course = "Not Applicable"
+        graduation_college = "Not Applicable"
+    else:
+        graduation_course = row.get("graduation_course", "Not Specified")
+        graduation_college = row.get("graduation_college", "Not Specified")
+        if pd.isna(graduation_course):
+            graduation_course = "Not Specified"
+        else:
+            graduation_course = str(graduation_course).strip() or "Not Specified"
+        if pd.isna(graduation_college):
+            graduation_college = "Not Specified"
+        else:
+            graduation_college = str(graduation_college).strip() or "Not Specified"
+
+    graduation_year = row.get("graduation_year", None)
+    if pd.isna(graduation_year):
+        graduation_year = None
+
+    alt = row.get("alternate_phone", "")
+    if alt is None or (isinstance(alt, float) and pd.isna(alt)):
+        alternate_phone = ""
+    else:
+        alternate_phone = str(alt).strip()
+
+    is_graduated = "YES" if graduation_status == "YES" else "NO"
+
+    return Lead(
+        lead_id=_new_import_lead_id(),
+        first_name=_import_cell_str(row, "first_name"),
+        last_name=_import_cell_str(row, "last_name"),
+        email=_import_cell_str(row, "email"),
+        phone=_import_cell_str(row, "phone"),
+        alternate_phone=alternate_phone,
+        school_name=_import_cell_str(row, "School Name"),
+        graduation_status=graduation_status,
+        graduation_course=graduation_course,
+        graduation_year=graduation_year,
+        graduation_college=graduation_college,
+        course_interested=_import_cell_str(row, "course_interested"),
+        industry=_import_cell_str(row, "industry"),
+        source=source,
+        assigned_counsellor=assigned_counsellor,
+        is_graduated=is_graduated,
+    )
 
 
 @admin_required
@@ -582,63 +660,59 @@ def import_leads(request):
                 success_count = 0
                 error_count = 0
                 imported_leads = []
-                
-                # Process all rows and prepare for bulk creation
+                pending = []
+                batch_size = max(50, int(getattr(settings, "LEAD_IMPORT_BATCH_SIZE", 400)))
+
                 for index, row in df.iterrows():
                     try:
-                        # Create lead from row data
-                        graduation_status = row.get('graduation_status', 'NO')
-                        
-                        # Handle graduation fields based on status
-                        if graduation_status == 'NO':
-                            graduation_course = 'Not Applicable'
-                            graduation_college = 'Not Applicable'
-                        else:
-                            # Handle NaN values from pandas
-                            graduation_course = row.get('graduation_course', 'Not Specified')
-                            graduation_college = row.get('graduation_college', 'Not Specified')
-                            
-                            # Convert NaN to None/empty string
-                            if pd.isna(graduation_course):
-                                graduation_course = 'Not Specified'
-                            if pd.isna(graduation_college):
-                                graduation_college = 'Not Specified'
-                        
-                        # Handle graduation_year NaN values
-                        graduation_year = row.get('graduation_year', None)
-                        if pd.isna(graduation_year):
-                            graduation_year = None
-                        
-                        # Prepare and save lead object so model save() logic runs (lead_id generation, etc.)
-                        lead = Lead(
-                            first_name=row.get('first_name', ''),
-                            last_name=row.get('last_name', ''),
-                            email=row.get('email', ''),
-                            phone=str(row.get('phone', '')),
-                            alternate_phone=str(row.get('alternate_phone', '')) if row.get('alternate_phone') else '',
-                            school_name=row.get('School Name', ''),  # Map School Name to school_name field
-                            graduation_status=graduation_status,
-                            graduation_course=graduation_course,
-                            graduation_year=graduation_year,
-                            graduation_college=graduation_college,
-                            course_interested=row.get('course_interested', ''),
-                            industry=row.get('industry', ''),  # Keep for backward compatibility
-                            source=source,
-                            assigned_counsellor=assigned_counsellor,
+                        pending.append(
+                            _build_lead_from_import_row(row, source, assigned_counsellor)
                         )
-                        # Use model's save() so unique lead_id is generated per row
-                        lead.save()
-                        imported_leads.append(lead)
-                        success_count += 1
-                        
                     except Exception as e:
                         error_count += 1
-                        # Log the specific error for debugging
-                        logger = logging.getLogger(__name__)
-                        logger.error(f"Error importing row {index + 1}: {str(e)}")
-                        logger.debug(f"Row data: {dict(row)}")
-                        continue
-                
+                        logger.error(
+                            "Error parsing import row %s: %s",
+                            index + 1,
+                            str(e),
+                            exc_info=True,
+                        )
+
+                for i in range(0, len(pending), batch_size):
+                    chunk = pending[i : i + batch_size]
+                    try:
+                        with transaction.atomic():
+                            Lead.objects.bulk_create(chunk, batch_size=batch_size)
+                        imported_leads.extend(chunk)
+                        success_count += len(chunk)
+                    except Exception as e:
+                        logger.warning(
+                            "Bulk insert failed for %s rows (%s); retrying one-by-one.",
+                            len(chunk),
+                            str(e),
+                        )
+                        for lead in chunk:
+                            try:
+                                with transaction.atomic():
+                                    lead.save()
+                                imported_leads.append(lead)
+                                success_count += 1
+                            except Exception as e2:
+                                error_count += 1
+                                logger.error("Error importing row: %s", str(e2), exc_info=True)
+
+                # bulk_create may omit pk on some DBs; auto-assign uses bulk_update and needs ids
+                if auto_assign and imported_leads:
+                    if any(getattr(l, "pk", None) is None for l in imported_leads):
+                        lids = [l.lead_id for l in imported_leads if l.lead_id]
+                        db_map = {
+                            x.lead_id: x for x in Lead.objects.filter(lead_id__in=lids)
+                        }
+                        imported_leads = [
+                            db_map[l.lead_id]
+                            for l in imported_leads
+                            if l.lead_id in db_map
+                        ]
+
                 # Auto-assign leads if requested
                 if auto_assign and imported_leads and not assigned_counsellor:
                     try:
@@ -669,6 +743,7 @@ def import_leads(request):
                 return redirect(reverse('manage_leads'))
                 
             except Exception as e:
+                logger.exception("Lead import failed")
                 messages.error(request, f"Import failed: {str(e)}")
         else:
             messages.error(request, "Please fill the form properly!")
