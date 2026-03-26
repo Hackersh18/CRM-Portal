@@ -1,7 +1,6 @@
 import json
 import logging
 import uuid
-import pandas as pd
 from datetime import datetime, timedelta
 
 from django.db import transaction
@@ -21,6 +20,7 @@ from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
 from .forms import *
+from .lead_import_io import is_blank_import_value, iter_lead_import_rows
 from .models import *
 from .utils import paginate_queryset, user_type_required, admin_perm_required, get_counsellor_activity_snapshot
 
@@ -30,11 +30,11 @@ logger = logging.getLogger(__name__)
 
 
 def _import_cell_str(row, key, default=""):
-    """Normalize pandas cell to a clean string (handles NaN / numeric cells)."""
-    if key not in row.index:
+    """Normalize import cell to a clean string (handles empty / NaN from Excel)."""
+    if key not in row:
         return default
     val = row[key]
-    if val is None or (isinstance(val, float) and pd.isna(val)):
+    if is_blank_import_value(val):
         return default
     s = str(val).strip()
     return s if s else default
@@ -46,9 +46,9 @@ def _new_import_lead_id():
 
 
 def _build_lead_from_import_row(row, source, assigned_counsellor):
-    """Construct an unsaved Lead from one dataframe row (raises on bad data)."""
+    """Construct an unsaved Lead from one import row dict (raises on bad data)."""
     raw_gs = row.get("graduation_status", "NO")
-    if pd.isna(raw_gs):
+    if is_blank_import_value(raw_gs):
         graduation_status = "NO"
     else:
         graduation_status = str(raw_gs).strip().upper()
@@ -61,21 +61,26 @@ def _build_lead_from_import_row(row, source, assigned_counsellor):
     else:
         graduation_course = row.get("graduation_course", "Not Specified")
         graduation_college = row.get("graduation_college", "Not Specified")
-        if pd.isna(graduation_course):
+        if is_blank_import_value(graduation_course):
             graduation_course = "Not Specified"
         else:
             graduation_course = str(graduation_course).strip() or "Not Specified"
-        if pd.isna(graduation_college):
+        if is_blank_import_value(graduation_college):
             graduation_college = "Not Specified"
         else:
             graduation_college = str(graduation_college).strip() or "Not Specified"
 
     graduation_year = row.get("graduation_year", None)
-    if pd.isna(graduation_year):
+    if is_blank_import_value(graduation_year):
         graduation_year = None
+    else:
+        try:
+            graduation_year = int(float(graduation_year))
+        except (TypeError, ValueError):
+            graduation_year = None
 
     alt = row.get("alternate_phone", "")
-    if alt is None or (isinstance(alt, float) and pd.isna(alt)):
+    if is_blank_import_value(alt):
         alternate_phone = ""
     else:
         alternate_phone = str(alt).strip()
@@ -651,19 +656,13 @@ def import_leads(request):
                     messages.error(request, f"File too large. Max size is {max_size_mb}MB.")
                     return redirect(reverse('import_leads'))
                 
-                # Read the file
-                if file.name.endswith('.csv'):
-                    df = pd.read_csv(file)
-                else:
-                    df = pd.read_excel(file)
-                
                 success_count = 0
                 error_count = 0
                 imported_leads = []
                 pending = []
                 batch_size = max(50, int(getattr(settings, "LEAD_IMPORT_BATCH_SIZE", 400)))
 
-                for index, row in df.iterrows():
+                for row_num, row in iter_lead_import_rows(file, file.name):
                     try:
                         pending.append(
                             _build_lead_from_import_row(row, source, assigned_counsellor)
@@ -672,7 +671,7 @@ def import_leads(request):
                         error_count += 1
                         logger.error(
                             "Error parsing import row %s: %s",
-                            index + 1,
+                            row_num,
                             str(e),
                             exc_info=True,
                         )
