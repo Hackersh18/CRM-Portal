@@ -391,7 +391,12 @@ STATICFILES_FINDERS = [
 # Session Configuration
 SESSION_COOKIE_AGE = 1800  # 30 minutes in seconds
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
-SESSION_SAVE_EVERY_REQUEST = True
+# False avoids writing the session to the DB/cache on every request (major latency win on remote DB).
+SESSION_SAVE_EVERY_REQUEST = get_bool_env('SESSION_SAVE_EVERY_REQUEST', default=False)
+
+# Dashboard caches (seconds). Set 0 to disable counsellor snapshot cache. Admin cache uses min 1 if enabled.
+ADMIN_DASHBOARD_CACHE_SECONDS = int(os.environ.get('ADMIN_DASHBOARD_CACHE_SECONDS', '45'))
+COUNSELLOR_SNAPSHOT_CACHE_SECONDS = int(os.environ.get('COUNSELLOR_SNAPSHOT_CACHE_SECONDS', '45'))
 
 # Upload limits (import + general uploads)
 MAX_LEAD_IMPORT_MB = int(os.environ.get('MAX_LEAD_IMPORT_MB', '10'))

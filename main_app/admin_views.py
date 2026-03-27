@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timedelta
 
 from django.db import transaction
+from django.core.cache import cache
 from django.contrib import messages
 from django.core.files.storage import FileSystemStorage
 from django.http import HttpResponse, JsonResponse
@@ -107,117 +108,112 @@ def _build_lead_from_import_row(row, source, assigned_counsellor):
     )
 
 
-@admin_required
-def admin_home(request):
-    """Admin Dashboard with comprehensive CRM analytics"""
-    
-    try:
-        # Basic Statistics - optimized with single queries
-        total_counsellors = Counsellor.objects.filter(is_active=True).count()
-        total_leads = Lead.objects.count()
-        # Total successfully converted leads (CLOSED_WON)
-        total_business = Lead.objects.filter(status='CLOSED_WON').count()
-        
-        # Lead Statistics - optimized: single aggregation query instead of multiple counts
-        lead_status_counts = Lead.objects.values('status').annotate(
-            count=Count('id')
-        ).values_list('status', 'count')
-        lead_status_dict = dict(lead_status_counts)
-        new_leads = lead_status_dict.get('NEW', 0)
-        contacted_leads = lead_status_dict.get('CONTACTED', 0)
-        qualified_leads = lead_status_dict.get('QUALIFIED', 0)
-        closed_won = lead_status_dict.get('CLOSED_WON', 0)
-        closed_lost = lead_status_dict.get('CLOSED_LOST', 0)
-        
-        # Monthly Performance
-        current_month = timezone.now().replace(day=1)
-        monthly_leads = Lead.objects.filter(created_at__gte=current_month).count()
-        # Successfully converted leads created in current month
-        monthly_business = Lead.objects.filter(
-            status='CLOSED_WON',
-            created_at__gte=current_month
-        ).count()
-        
-        # Lead Source Distribution
-        lead_sources = LeadSource.objects.annotate(
-            lead_count=Count('lead')
-        ).values('name', 'lead_count')
-        
-        # Counsellor Performance - optimized with select_related
-        counsellor_performance = Counsellor.objects.filter(is_active=True).select_related(
-            'admin'
-        ).annotate(
+def _admin_home_month_key(dt):
+    if dt is None:
+        return None
+    return (dt.year, dt.month)
+
+
+def _fetch_admin_home_cached_payload():
+    """
+    Dashboard aggregates (no ORM querysets — safe to cache).
+    Recent activities are loaded separately each request.
+    """
+    # Basic Statistics
+    total_counsellors = Counsellor.objects.filter(is_active=True).count()
+    total_leads = Lead.objects.count()
+    total_business = Lead.objects.filter(status='CLOSED_WON').count()
+
+    lead_status_counts = Lead.objects.values('status').annotate(
+        count=Count('id')
+    ).values_list('status', 'count')
+    lead_status_dict = dict(lead_status_counts)
+    new_leads = lead_status_dict.get('NEW', 0)
+    contacted_leads = lead_status_dict.get('CONTACTED', 0)
+    qualified_leads = lead_status_dict.get('QUALIFIED', 0)
+    closed_won = lead_status_dict.get('CLOSED_WON', 0)
+    closed_lost = lead_status_dict.get('CLOSED_LOST', 0)
+
+    current_month = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    monthly_leads = Lead.objects.filter(created_at__gte=current_month).count()
+    monthly_business = Lead.objects.filter(
+        status='CLOSED_WON',
+        created_at__gte=current_month,
+    ).count()
+
+    lead_sources = list(
+        LeadSource.objects.annotate(lead_count=Count('lead')).values('name', 'lead_count')
+    )
+
+    counsellor_performance = list(
+        Counsellor.objects.filter(is_active=True)
+        .select_related('admin')
+        .annotate(
             total_leads=Count('lead'),
             total_business=Sum('business__value'),
             conversion_rate=Case(
                 When(total_leads=0, then=Value(0.0)),
                 default=Count('business') * 100.0 / Count('lead'),
-                output_field=DecimalField()
-            )
-        ).values('admin__first_name', 'admin__last_name', 'total_leads', 'total_business', 'conversion_rate')
-        
-        # Recent Activities
-        recent_activities = LeadActivity.objects.select_related(
-            'lead', 'counsellor__admin'
-        ).order_by('-completed_date')[:10]
-        
-        # Lead Status Distribution for Charts
-        lead_status_data = {
-            'NEW': new_leads,
-            'CONTACTED': contacted_leads,
-            'QUALIFIED': qualified_leads,
-            'CLOSED_WON': closed_won,
-            'CLOSED_LOST': closed_lost
-        }
-        
-        # Monthly Trend Data (Last 6 months) - optimized with bulk aggregation
-        monthly_trend = []
-        month_starts = [current_month - timedelta(days=30*i) for i in range(6)]
-        month_ends = [start + timedelta(days=30) for start in month_starts]
-        
-        # Bulk query for all months at once
-        from django.db.models import Q
-        monthly_lead_counts = {}
-        monthly_business_totals = {}
-        
-        for i, (start, end) in enumerate(zip(month_starts, month_ends)):
-            monthly_lead_counts[i] = Lead.objects.filter(
-                created_at__gte=start,
-                created_at__lt=end
-            ).count()
-            monthly_business_totals[i] = Business.objects.filter(
-                created_at__gte=start,
-                created_at__lt=end,
-                status='ACTIVE'
-            ).aggregate(total=Sum('value'))['total'] or 0
-        
-        for i, month_start in enumerate(month_starts):
-            monthly_trend.append({
-                'month': month_start.strftime('%B %Y'),
-                'leads': monthly_lead_counts[i],
-                'business': float(monthly_business_totals[i])
-            })
-        
-    except Exception as e:
-        # Fallback values if there's an error
-        total_counsellors = 0
-        total_leads = 0
-        total_business = 0
-        new_leads = 0
-        contacted_leads = 0
-        qualified_leads = 0
-        closed_won = 0
-        closed_lost = 0
-        monthly_leads = 0
-        monthly_business = 0
-        lead_sources = []
-        counsellor_performance = []
-        recent_activities = []
-        lead_status_data = {}
-        monthly_trend = []
-    
-    context = {
-        'page_title': "CRM Admin Dashboard",
+                output_field=DecimalField(),
+            ),
+        )
+        .values(
+            'admin__first_name',
+            'admin__last_name',
+            'total_leads',
+            'total_business',
+            'conversion_rate',
+        )
+    )
+
+    lead_status_data = {
+        'NEW': new_leads,
+        'CONTACTED': contacted_leads,
+        'QUALIFIED': qualified_leads,
+        'CLOSED_WON': closed_won,
+        'CLOSED_LOST': closed_lost,
+    }
+
+    # Last 6 calendar months — two queries (leads + business) instead of 12 range filters
+    anchor = current_month
+    months_6 = []
+    y, mo = anchor.year, anchor.month
+    for _ in range(6):
+        months_6.insert(0, anchor.replace(year=y, month=mo, day=1))
+        mo -= 1
+        if mo < 1:
+            mo = 12
+            y -= 1
+    oldest = months_6[0]
+
+    lead_map = {}
+    for row in (
+        Lead.objects.filter(created_at__gte=oldest)
+        .annotate(m=TruncMonth('created_at'))
+        .values('m')
+        .annotate(cnt=Count('id'))
+    ):
+        lead_map[_admin_home_month_key(row['m'])] = row['cnt']
+
+    biz_map = {}
+    for row in (
+        Business.objects.filter(created_at__gte=oldest, status='ACTIVE')
+        .annotate(m=TruncMonth('created_at'))
+        .values('m')
+        .annotate(total=Sum('value'))
+    ):
+        biz_map[_admin_home_month_key(row['m'])] = float(row['total'] or 0)
+
+    monthly_trend = []
+    for ms in months_6:
+        mk = (ms.year, ms.month)
+        monthly_trend.append({
+            'month': ms.strftime('%B %Y'),
+            'leads': lead_map.get(mk, 0),
+            'business': biz_map.get(mk, 0.0),
+        })
+
+    return {
         'total_counsellors': total_counsellors,
         'total_leads': total_leads,
         'total_business': total_business,
@@ -228,11 +224,59 @@ def admin_home(request):
         'closed_lost': closed_lost,
         'monthly_leads': monthly_leads,
         'monthly_business': monthly_business,
-        'lead_sources': list(lead_sources),
-        'counsellor_performance': list(counsellor_performance),
-        'recent_activities': recent_activities,
+        'lead_sources': lead_sources,
+        'counsellor_performance': counsellor_performance,
         'lead_status_data': lead_status_data,
         'monthly_trend': monthly_trend,
+    }
+
+
+@admin_required
+def admin_home(request):
+    """Admin Dashboard with comprehensive CRM analytics"""
+    ttl = int(getattr(settings, 'ADMIN_DASHBOARD_CACHE_SECONDS', 45))
+    cache_key = 'crm:admin_home_dashboard_v2'
+
+    try:
+        if ttl > 0:
+            payload = cache.get(cache_key)
+            if payload is None:
+                payload = _fetch_admin_home_cached_payload()
+                cache.set(cache_key, payload, ttl)
+        else:
+            payload = _fetch_admin_home_cached_payload()
+    except Exception:
+        logger.exception('admin_home cache/compute failed')
+        payload = None
+
+    if payload is None:
+        payload = {
+            'total_counsellors': 0,
+            'total_leads': 0,
+            'total_business': 0,
+            'new_leads': 0,
+            'contacted_leads': 0,
+            'qualified_leads': 0,
+            'closed_won': 0,
+            'closed_lost': 0,
+            'monthly_leads': 0,
+            'monthly_business': 0,
+            'lead_sources': [],
+            'counsellor_performance': [],
+            'lead_status_data': {},
+            'monthly_trend': [],
+        }
+
+    recent_activities = list(
+        LeadActivity.objects.select_related('lead', 'counsellor__admin').order_by(
+            '-completed_date'
+        )[:10]
+    )
+
+    context = {
+        'page_title': 'CRM Admin Dashboard',
+        'recent_activities': recent_activities,
+        **payload,
     }
     return render(request, 'admin_template/home_content.html', context)
 

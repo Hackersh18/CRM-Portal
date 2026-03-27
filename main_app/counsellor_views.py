@@ -29,7 +29,10 @@ counsellor_required = user_type_required('2')
 @counsellor_required
 def counsellor_home(request):
     """Counsellor Dashboard"""
-    counsellor = get_object_or_404(Counsellor, admin=request.user)
+    counsellor = get_object_or_404(
+        Counsellor.objects.select_related('admin'),
+        admin=request.user,
+    )
     
     # My Leads Statistics - optimized: single aggregation query
     my_leads = Lead.objects.filter(assigned_counsellor=counsellor)
@@ -63,12 +66,12 @@ def counsellor_home(request):
         scheduled_date__isnull=False,
         scheduled_date__gte=today_start,
         scheduled_date__lt=today_end
-    ).select_related('lead').order_by('scheduled_date')
+    ).select_related('lead', 'lead__source').order_by('scheduled_date')
     
     # Recent Activities (for other sections)
     recent_activities = LeadActivity.objects.filter(
         counsellor=counsellor
-    ).select_related('lead').order_by('-completed_date')[:10]
+    ).select_related('lead', 'lead__source').order_by('-completed_date')[:10]
     
     # Today's Follow-ups - only show follow-ups scheduled for today
     # Use date range filtering (Django will handle timezone conversion)

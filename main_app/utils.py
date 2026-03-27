@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.core.cache import cache
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
@@ -118,6 +120,13 @@ def get_counsellor_activity_snapshot(counsellor):
     Numeric snapshot for dashboards: pipeline by status, visits, and monthly activity counts.
     "Today" work-on-target metrics use the same rules as the daily target (see get_counsellor_daily_target_progress).
     """
+    ttl = int(getattr(settings, 'COUNSELLOR_SNAPSHOT_CACHE_SECONDS', 45))
+    cache_key = f'crm:counsellor_activity_snapshot:{counsellor.pk}'
+    if ttl > 0:
+        hit = cache.get(cache_key)
+        if hit is not None:
+            return hit
+
     from datetime import timedelta
     from django.db.models import Count
     from django.utils import timezone
@@ -191,7 +200,7 @@ def get_counsellor_activity_snapshot(counsellor):
         last_contact_date__lt=today_end,
     ).count()
 
-    return {
+    out = {
         'new': status_counts.get('NEW', 0),
         'contacted': status_counts.get('CONTACTED', 0),
         'qualified': status_counts.get('QUALIFIED', 0),
@@ -220,3 +229,6 @@ def get_counsellor_activity_snapshot(counsellor):
         'target_remaining': target_progress['target_remaining'],
         'target_progress_pct': target_progress['target_progress_pct'],
     }
+    if ttl > 0:
+        cache.set(cache_key, out, ttl)
+    return out
