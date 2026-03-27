@@ -268,9 +268,17 @@ if 'postgresql' in _engine:
         _pg_port = int(str(_db.get('PORT') or 5432))
     except ValueError:
         _pg_port = 5432
-    # Transaction pooler (Supabase port 6543): turn off persistent Django connections.
+    _pg_host_l = str(_db.get('HOST', '')).lower()
+    _is_supabase_pooler = 'pooler.supabase.com' in _pg_host_l
+
+    # Transaction pooler (6543): required — connections cannot stay open across requests.
     if _pg_port == 6543 or get_bool_env('SUPABASE_TRANSACTION_POOLER', False):
         _db['CONN_MAX_AGE'] = 0
+    elif _is_supabase_pooler and _pg_port == 5432:
+        # Session pooler: tiny max-clients limit. Persistent CONN_MAX_AGE (e.g. 600) + many
+        # Vercel/serverless instances or Gunicorn workers → "MaxClientsInSessionMode".
+        # Default 0; set DATABASE_CONN_MAX_AGE only if you know your pool size (dedicated VPS).
+        _db['CONN_MAX_AGE'] = int(os.environ.get('DATABASE_CONN_MAX_AGE', '0'))
     else:
         _db['CONN_MAX_AGE'] = int(os.environ.get('DATABASE_CONN_MAX_AGE', '600'))
 
