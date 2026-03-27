@@ -14,6 +14,8 @@ import dj_database_url
 import os
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
+
 from dotenv import load_dotenv
 from typing import Optional
 
@@ -82,16 +84,89 @@ if (
         "SECRET_KEY environment variable is required when DJANGO_DEBUG=False."
     )
 
+def _normalize_allowed_host_entry(entry: str) -> str:
+    """Strip whitespace, trailing slashes, and accidental paths (ALLOWED_HOSTS = hostname only)."""
+    s = (entry or "").strip()
+    if not s:
+        return ""
+    s = s.split("/")[0].strip()
+    return s
+
+
+def _append_unique(items: list, value: str) -> None:
+    v = (value or "").strip()
+    if v and v not in items:
+        items.append(v)
+
+
 _raw_allowed_hosts = (
     os.environ.get('DJANGO_ALLOWED_HOSTS')
     or os.environ.get('ALLOWED_HOSTS')
     or '127.0.0.1,localhost'
 )
-ALLOWED_HOSTS = [h.strip() for h in _raw_allowed_hosts.split(',') if h.strip()]
+ALLOWED_HOSTS = [
+    h
+    for h in (
+        _normalize_allowed_host_entry(x) for x in _raw_allowed_hosts.split(',')
+    )
+    if h
+]
 
 # Trusted origins for CSRF on HTTPS (Django 4+). e.g. https://crm.example.com,https://www.example.com
 _csrf_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '').strip()
-CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
+CSRF_TRUSTED_ORIGINS = [
+    o.strip().rstrip("/") for o in _csrf_origins.split(',') if o.strip()
+]
+
+# --- Vercel: preview URLs differ per deploy (e.g. *-hash-team.vercel.app). VERCEL_URL is set automatically.
+# https://vercel.com/docs/projects/environment-variables/system-environment-variables
+if os.environ.get("VERCEL"):
+    _append_unique(ALLOWED_HOSTS, ".vercel.app")
+
+for _vu in (
+    os.environ.get("VERCEL_URL", "").strip(),
+    os.environ.get("VERCEL_BRANCH_URL", "").strip(),
+):
+    if _vu:
+        _host = _normalize_allowed_host_entry(_vu.split("://")[-1])
+        if _host:
+            _append_unique(ALLOWED_HOSTS, _host)
+            _append_unique(CSRF_TRUSTED_ORIGINS, f"https://{_host}")
+
+_vprod = os.environ.get("VERCEL_PROJECT_PRODUCTION_URL", "").strip()
+if _vprod:
+    _vp = _vprod if "://" in _vprod else f"https://{_vprod}"
+    try:
+        _parts = urlparse(_vp)
+        if _parts.hostname:
+            _append_unique(ALLOWED_HOSTS, _parts.hostname)
+        if _parts.scheme in ("http", "https") and _parts.netloc:
+            _append_unique(
+                CSRF_TRUSTED_ORIGINS,
+                f"{_parts.scheme}://{_parts.netloc}".rstrip("/"),
+            )
+    except ValueError:
+        pass
+
+# Railway / Render (optional)
+_railway_public = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "").strip()
+if _railway_public:
+    _append_unique(ALLOWED_HOSTS, _railway_public)
+    _append_unique(CSRF_TRUSTED_ORIGINS, f"https://{_railway_public}")
+
+_render_external = os.environ.get("RENDER_EXTERNAL_URL", "").strip()
+if _render_external:
+    try:
+        _rp = urlparse(_render_external)
+        if _rp.hostname:
+            _append_unique(ALLOWED_HOSTS, _rp.hostname)
+        if _rp.scheme in ("http", "https") and _rp.netloc:
+            _append_unique(
+                CSRF_TRUSTED_ORIGINS,
+                f"{_rp.scheme}://{_rp.netloc}".rstrip("/"),
+            )
+    except ValueError:
+        pass
 
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
