@@ -584,8 +584,10 @@ def manage_leads(request):
     if 'page' in query_params:
         del query_params['page']
     query_string = query_params.urlencode()
+    total_leads_in_system = Lead.objects.count()
     context = {
         'leads': leads,
+        'total_leads_in_system': total_leads_in_system,
         'page_title': 'Manage Leads',
         'search_query': search_query,
         'status_filter': status_filter,
@@ -654,6 +656,7 @@ def delete_lead(request, lead_id):
     lead = get_object_or_404(Lead, id=lead_id)
     try:
         lead.delete()
+        cache.delete('crm:admin_home_dashboard_v2')
         messages.success(request, "Lead deleted successfully!")
     except Exception as e:
         messages.error(request, f"Could not delete lead: {str(e)}")
@@ -661,6 +664,7 @@ def delete_lead(request, lead_id):
 
 
 @admin_required
+@admin_perm_required('delete')
 @require_POST
 def bulk_delete_leads(request):
     """Delete multiple leads selected from the manage leads table"""
@@ -674,9 +678,44 @@ def bulk_delete_leads(request):
 
     try:
         leads_qs.delete()
+        cache.delete('crm:admin_home_dashboard_v2')
         messages.success(request, f"Successfully deleted {count} lead(s).")
     except Exception as e:
         messages.error(request, f"Could not delete selected leads: {str(e)}")
+
+    return redirect(reverse('manage_leads'))
+
+
+DELETE_ALL_LEADS_CONFIRM_PHRASE = 'DELETE ALL LEADS'
+
+
+@admin_required
+@admin_perm_required('delete')
+@require_POST
+def delete_all_leads(request):
+    """
+    Permanently delete every Lead in the database (all pages / filters).
+    Requires typing the confirmation phrase exactly.
+    """
+    confirm = (request.POST.get('confirm_text') or '').strip()
+    if confirm != DELETE_ALL_LEADS_CONFIRM_PHRASE:
+        messages.error(
+            request,
+            f'Confirmation failed. Type exactly: {DELETE_ALL_LEADS_CONFIRM_PHRASE}',
+        )
+        return redirect(reverse('manage_leads'))
+
+    try:
+        n = Lead.objects.count()
+        if n == 0:
+            messages.info(request, 'There are no leads to delete.')
+            return redirect(reverse('manage_leads'))
+        Lead.objects.all().delete()
+        cache.delete('crm:admin_home_dashboard_v2')
+        messages.success(request, f'Successfully deleted all {n} lead(s).')
+    except Exception as e:
+        logger.exception('delete_all_leads failed')
+        messages.error(request, f'Could not delete all leads: {str(e)}')
 
     return redirect(reverse('manage_leads'))
 

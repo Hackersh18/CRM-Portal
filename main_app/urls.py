@@ -60,6 +60,7 @@ urlpatterns = [
     path("leads/edit/<int:lead_id>/", admin_views.edit_lead, name='edit_lead'),
     path("leads/delete/<int:lead_id>/", admin_views.delete_lead, name='delete_lead'),
     path("leads/delete/bulk/", admin_views.bulk_delete_leads, name='bulk_delete_leads'),
+    path("leads/delete/all/", admin_views.delete_all_leads, name='delete_all_leads'),
     path("leads/import/", admin_views.import_leads, name='import_leads'),
     path("leads/import/template/<str:file_type>/", admin_views.download_import_template, name='download_import_template'),
     path("leads/assign/", admin_views.assign_leads_to_counsellors, name='assign_leads_to_counsellors'),

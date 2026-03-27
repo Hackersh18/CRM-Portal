@@ -74,6 +74,12 @@
                             <a href="{% url 'assign_leads_to_counsellors' %}" class="btn btn-warning">
                                 <i class="fas fa-users"></i> Assign Leads
                             </a>
+                            {% if perm_delete and total_leads_in_system %}
+                            <button type="button" class="btn btn-danger" data-toggle="modal" data-target="#deleteAllLeadsModal"
+                                    title="Remove every lead in the system (not limited to this page)">
+                                <i class="fas fa-trash-alt"></i> Delete all leads
+                            </button>
+                            {% endif %}
                         </div>
                     </div>
                     <div class="card-body">
@@ -298,6 +304,41 @@
         </div>
     </div>
 </section>
+
+{% if perm_delete and total_leads_in_system %}
+<div class="modal fade" id="deleteAllLeadsModal" tabindex="-1" role="dialog" aria-labelledby="deleteAllLeadsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content border-danger">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteAllLeadsModalLabel"><i class="fas fa-exclamation-triangle"></i> Delete all leads</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="font-weight-bold">This will permanently delete <strong>all {{ total_leads_in_system }} lead(s)</strong> in the database.</p>
+                <p class="text-muted small mb-2">This is not limited to the current page or filters. Related activities, businesses, and other records tied to leads may be removed according to your data model.</p>
+                <p class="mb-2">Type the following phrase exactly to confirm:</p>
+                <p class="mb-3"><code class="bg-light p-2 d-inline-block">DELETE ALL LEADS</code></p>
+                <form method="post" action="{% url 'delete_all_leads' %}" id="delete-all-leads-form">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label for="confirm_text">Confirmation</label>
+                        <input type="text" class="form-control" id="confirm_text" name="confirm_text" autocomplete="off"
+                               placeholder="DELETE ALL LEADS" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="submit" form="delete-all-leads-form" class="btn btn-danger">
+                    <i class="fas fa-trash-alt"></i> Delete every lead
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock content %}
 
 {% block custom_js %}
