@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 
 import dj_database_url
 import os
+import socket
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
@@ -272,6 +273,26 @@ if 'postgresql' in _engine:
         _db['CONN_MAX_AGE'] = 0
     else:
         _db['CONN_MAX_AGE'] = int(os.environ.get('DATABASE_CONN_MAX_AGE', '600'))
+
+    # Direct db.*.supabase.co often resolves to IPv6 first; Vercel/Railway/Docker may fail with
+    # "Cannot assign requested address". Use IPv4 for the TCP connection but keep HOST for TLS name.
+    _prefer_ipv4 = (
+        get_bool_env('DATABASE_PREFER_IPV4', False)
+        or get_bool_env('SUPABASE_PREFER_IPV4', False)
+        or bool(os.environ.get('VERCEL'))
+        or bool(os.environ.get('RAILWAY_ENVIRONMENT'))
+    )
+    if _prefer_ipv4 and 'hostaddr' not in _db['OPTIONS']:
+        _pg_host = _db.get('HOST')
+        if _pg_host:
+            try:
+                _ipv4_infos = socket.getaddrinfo(
+                    _pg_host, None, socket.AF_INET, socket.SOCK_STREAM
+                )
+                if _ipv4_infos:
+                    _db['OPTIONS']['hostaddr'] = _ipv4_infos[0][4][0]
+            except OSError:
+                pass
 else:
     _db['CONN_MAX_AGE'] = int(os.environ.get('DATABASE_CONN_MAX_AGE', '600'))
 
